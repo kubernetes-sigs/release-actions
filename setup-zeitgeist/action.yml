@@ -1,0 +1,150 @@
+# action.yml
+name: setup-zeitgeist
+author: cpanato
+description: 'Installs zeitgeist and includes it in your path'
+branding:
+  icon: 'package'
+  color: 'blue'
+# This is pinned to the last major release, we have to bump it for each action version.
+inputs:
+  zeitgeist-release:
+    description: 'zeitgeist release version to be installed'
+    required: false
+    default: '0.3.5'
+  install-dir:
+    description: 'Where to install the zeitgeist binary'
+    required: false
+    default: '$HOME/.zeitgeist'
+  use-sudo:
+    description: 'set to true if install-dir location requires sudo privs'
+    required: false
+    default: 'false'
+runs:
+  using: "composite"
+  steps:
+    - uses: sigstore/cosign-installer@9becc617647dfa20ae7b1151972e9b3a2c338a2b # v2.8.1
+      with:
+        install-dir: ${{ inputs.install-dir }}
+        use-sudo: ${{ inputs.use-sudo }}
+    - shell: bash
+      run: |
+        #!/bin/bash
+        # zeitgeist install script
+        shopt -s expand_aliases
+        if [ -z "$NO_COLOR" ]; then
+          alias log_info="echo -e \"\033[1;32mINFO\033[0m:\""
+          alias log_error="echo -e \"\033[1;31mERROR\033[0m:\""
+        else
+          alias log_info="echo \"INFO:\""
+          alias log_error="echo \"ERROR:\""
+        fi
+        set -e
+
+        mkdir -p ${{ inputs.install-dir }}
+
+        if [[ ${{ inputs.zeitgeist-release }} == "main" ]]; then
+          log_info "installing zeitgeist via 'go install' from its main version"
+          GOBIN=$(go env GOPATH)/bin
+          go install sigs.k8s.io/zeitgeist@master
+          ln -s $GOBIN/zeitgeist ${{ inputs.install-dir}}/zeitgeist
+          exit 0
+        fi
+
+        trap "popd >/dev/null" EXIT
+
+        pushd ${{ inputs.install-dir }} > /dev/null
+        zeitgeist_executable_name='zeitgeist'
+        case ${{ runner.os }} in
+          Linux)
+            case ${{ runner.arch }} in
+              X64)
+                desired_zeitgeist_filename='zeitgeist_${{ inputs.zeitgeist-release }}_linux_amd64'
+                ;;
+
+              ARM)
+                desired_zeitgeist_filename='zeitgeist_${{ inputs.zeitgeist-release }}_linux_arm'
+                ;;
+
+              ARM64)
+                desired_zeitgeist_filename='zeitgeist_${{ inputs.zeitgeist-release }}_linux_arm64'
+                ;;
+
+              *)
+                log_error "unsupported architecture $arch"
+                exit 1
+                ;;
+            esac
+            ;;
+
+          macOS)
+            case ${{ runner.arch }} in
+              X64)
+                desired_zeitgeist_filename='zeitgeist_${{ inputs.zeitgeist-release }}_darwin_amd64'
+                ;;
+
+              ARM64)
+                desired_zeitgeist_filename='zeitgeist_${{ inputs.zeitgeist-release }}_darwin_arm64'
+                ;;
+
+              *)
+                log_error "unsupported architecture $arch"
+                exit 1
+                ;;
+            esac
+            ;;
+
+          Windows)
+            case ${{ runner.arch }} in
+              X64)
+                desired_zeitgeist_filename='zeitgeist_${{ inputs.zeitgeist-release }}_windows_amd64.exe'
+                zeitgeist_executable_name=zeitgeist.exe
+                ;;
+              *)
+                log_error "unsupported architecture $arch"
+                exit 1
+                ;;
+            esac
+            ;;
+          *)
+            log_error "unsupported architecture $arch"
+            exit 1
+            ;;
+        esac
+
+        SUDO=
+        if "${{ inputs.use-sudo }}" == "true" && command -v sudo >/dev/null; then
+          SUDO=sudo
+        fi
+
+        semver='^([0-9]+\.){0,2}(\*|[0-9]+)$'
+        if [[ ${{ inputs.zeitgeist-release }} =~ $semver ]]; then
+          log_info "Custom zeitgeist version '${{ inputs.zeitgeist-release }}' requested"
+        else
+          log_error "Unable to validate requested zeitgeist version: '${{ inputs.zeitgeist-release }}'"
+          exit 1
+        fi
+
+        # Download custom zeitgeist
+        log_info "Downloading platform-specific version '${{ inputs.zeitgeist-release }}' of zeitgeist...\n      https://github.com/kubernetes-sigs/zeitgeist/releases/download/v${{ inputs.zeitgeist-release }}/${desired_zeitgeist_filename}"
+        $SUDO curl -sL https://github.com/kubernetes-sigs/zeitgeist/releases/download/v${{ inputs.zeitgeist-release }}/${desired_zeitgeist_filename} -o ${zeitgeist_executable_name}
+
+        ZEITGEIST_CERT=https://github.com/kubernetes-sigs/zeitgeist/releases/download/v${{ inputs.zeitgeist-release }}/${desired_zeitgeist_filename}.pem
+        ZEITGEIST_SIG=https://github.com/kubernetes-sigs/zeitgeist/releases/download/v${{ inputs.zeitgeist-release }}/${desired_zeitgeist_filename}.sig
+
+        log_info "Using cosign to verify signature of desired zeitgeist version"
+        COSIGN_EXPERIMENTAL=true cosign verify-blob --cert $ZEITGEIST_CERT --signature $ZEITGEIST_SIG ${zeitgeist_executable_name}
+        ret=$?
+        if [[ $retVal -eq 0 ]]; then
+          $SUDO chmod +x ${zeitgeist_executable_name}
+          log_info "Installation complete!"
+        else
+          log_error "Unable to validate vault version: '${{ inputs.vault-release }}'"
+          exit 1
+        fi
+
+    - if: ${{ runner.os == 'Linux' || runner.os == 'macOS' }}
+      run:  echo "${{ inputs.install-dir }}" >> $GITHUB_PATH
+      shell: bash
+    - if: ${{ runner.os == 'Windows' }}
+      run:  echo "${{ inputs.install-dir }}" | Out-File -FilePath $env:GITHUB_PATH -Encoding utf8 -Append
+      shell: pwsh
