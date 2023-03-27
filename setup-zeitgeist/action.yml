@@ -10,7 +10,7 @@ inputs:
   zeitgeist-release:
     description: 'zeitgeist release version to be installed'
     required: false
-    default: '0.3.5'
+    default: '0.4.1'
   install-dir:
     description: 'Where to install the zeitgeist binary'
     required: false

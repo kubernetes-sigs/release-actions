@@ -12,7 +12,7 @@ Add the following entry to your Github workflow YAML file:
 ```yaml
 uses: cpanato/setup-zeitgeist@main
 with:
-  zeitgeist-release: '0.3.5' # optional
+  zeitgeist-release: '0.4.1' # optional
 ```
 
 Example using a pinned version:
@@ -29,7 +29,7 @@ jobs:
       - name: Install zeitgeist
         uses: cpanato/setup-zeitgeist@main
         with:
-          zeitgeist-release: '0.3.5' # optional
+          zeitgeist-release: '0.4.1' # optional
       - name: Check install!
         run: zeitgeist version
 ```
