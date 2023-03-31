@@ -1,0 +1,144 @@
+# action.yml
+name: setup-bom
+author: cpanato
+description: 'Installs bom and includes it in your path'
+branding:
+  icon: 'package'
+  color: 'blue'
+# This is pinned to the last major release, we have to bump it for each action version.
+inputs:
+  bom-release:
+    description: 'bom release version to be installed'
+    required: false
+    default: '0.5.1'
+  install-dir:
+    description: 'Where to install the bom binary'
+    required: false
+    default: '$HOME/.bom'
+  use-sudo:
+    description: 'set to true if install-dir location requires sudo privs'
+    required: false
+    default: 'false'
+runs:
+  using: "composite"
+  steps:
+    - uses: sigstore/cosign-installer@c3667d99424e7e6047999fb6246c0da843953c65 # v3.0.1
+      with:
+        install-dir: ${{ inputs.install-dir }}
+        use-sudo: ${{ inputs.use-sudo }}
+    - shell: bash
+      run: |
+        #!/bin/bash
+        # bom install script
+        shopt -s expand_aliases
+        if [ -z "$NO_COLOR" ]; then
+          alias log_info="echo -e \"\033[1;32mINFO\033[0m:\""
+          alias log_error="echo -e \"\033[1;31mERROR\033[0m:\""
+        else
+          alias log_info="echo \"INFO:\""
+          alias log_error="echo \"ERROR:\""
+        fi
+        set -e
+
+        mkdir -p ${{ inputs.install-dir }}
+
+        trap "popd >/dev/null" EXIT
+
+        pushd ${{ inputs.install-dir }} > /dev/null
+        bom_executable_name='bom'
+        case ${{ runner.os }} in
+          Linux)
+            case ${{ runner.arch }} in
+              X64)
+                desired_bom_filename='bom-amd64-linux'
+                ;;
+
+              ARM)
+                desired_bom_filename='bom-arm-linux'
+                ;;
+
+              ARM64)
+                desired_bom_filename='bom-arm64-linux'
+                ;;
+
+              *)
+                log_error "unsupported architecture $arch"
+                exit 1
+                ;;
+            esac
+            ;;
+
+          macOS)
+            case ${{ runner.arch }} in
+              X64)
+                desired_bom_filename='bom-amd64-darwin'
+                ;;
+
+              ARM64)
+                desired_bom_filename='bom-arm64-darwin'
+                ;;
+
+              *)
+                log_error "unsupported architecture $arch"
+                exit 1
+                ;;
+            esac
+            ;;
+
+          Windows)
+            case ${{ runner.arch }} in
+              X64)
+                desired_bom_filename='bom-amd64-windows.exe'
+                bom_executable_name=bom.exe
+                ;;
+              *)
+                log_error "unsupported architecture $arch"
+                exit 1
+                ;;
+            esac
+            ;;
+          *)
+            log_error "unsupported architecture $arch"
+            exit 1
+            ;;
+        esac
+
+        SUDO=
+        if "${{ inputs.use-sudo }}" == "true" && command -v sudo >/dev/null; then
+          SUDO=sudo
+        fi
+
+        semver='^([0-9]+\.){0,2}(\*|[0-9]+)$'
+        if [[ ${{ inputs.bom-release }} =~ $semver ]]; then
+          log_info "Custom bom version '${{ inputs.bom-release }}' requested"
+        else
+          log_error "Unable to validate requested bom version: '${{ inputs.bom-release }}'"
+          exit 1
+        fi
+
+        # Download custom bom
+        log_info "Downloading platform-specific version '${{ inputs.bom-release }}' of bom...\n      https://github.com/kubernetes-sigs/bom/releases/download/v${{ inputs.bom-release }}/${desired_bom_filename}"
+        $SUDO curl -sL https://github.com/kubernetes-sigs/bom/releases/download/v${{ inputs.bom-release }}/${desired_bom_filename} -o ${bom_executable_name}
+
+        BOM_CERT=https://github.com/kubernetes-sigs/bom/releases/download/v${{ inputs.bom-release }}/${desired_bom_filename}.pem
+        BOM_SIG=https://github.com/kubernetes-sigs/bom/releases/download/v${{ inputs.bom-release }}/${desired_bom_filename}.sig
+
+        log_info "Using cosign to verify signature of desired bom version"
+        cosign verify-blob --certificate $BOM_CERT --signature $BOM_SIG \
+          --certificate-identity "https://github.com/kubernetes-sigs/bom/.github/workflows/release.yml@refs/tags/v${{ inputs.bom-release }}" \
+          --certificate-oidc-issuer "https://token.actions.githubusercontent.com" ${bom_executable_name}
+        retVal=$?
+        if [[ $retVal -eq 0 ]]; then
+          $SUDO chmod +x ${bom_executable_name}
+          log_info "Installation complete!"
+        else
+          log_error "Unable to validate bom version: '${{ inputs.bom-release }}'"
+          exit 1
+        fi
+
+    - if: ${{ runner.os == 'Linux' || runner.os == 'macOS' }}
+      run: echo "${{ inputs.install-dir }}" >> $GITHUB_PATH
+      shell: bash
+    - if: ${{ runner.os == 'Windows' }}
+      run: echo "${{ inputs.install-dir }}" | Out-File -FilePath $env:GITHUB_PATH -Encoding utf8 -Append
+      shell: pwsh
