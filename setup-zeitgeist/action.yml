@@ -140,7 +140,7 @@ runs:
           $SUDO chmod +x ${zeitgeist_executable_name}
           log_info "Installation complete!"
         else
-          log_error "Unable to validate vault version: '${{ inputs.vault-release }}'"
+          log_error "Unable to validate zeitgeist version: '${{ inputs.zeitgeist-release }}'"
           exit 1
         fi
 
