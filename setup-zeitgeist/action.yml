@@ -10,7 +10,7 @@ inputs:
   zeitgeist-release:
     description: 'zeitgeist release version to be installed'
     required: false
-    default: '0.3.5'
+    default: '0.4.1'
   install-dir:
     description: 'Where to install the zeitgeist binary'
     required: false
@@ -22,7 +22,7 @@ inputs:
 runs:
   using: "composite"
   steps:
-    - uses: sigstore/cosign-installer@9becc617647dfa20ae7b1151972e9b3a2c338a2b # v2.8.1
+    - uses: sigstore/cosign-installer@c3667d99424e7e6047999fb6246c0da843953c65 # v3.0.1
       with:
         install-dir: ${{ inputs.install-dir }}
         use-sudo: ${{ inputs.use-sudo }}
@@ -132,8 +132,10 @@ runs:
         ZEITGEIST_SIG=https://github.com/kubernetes-sigs/zeitgeist/releases/download/v${{ inputs.zeitgeist-release }}/${desired_zeitgeist_filename}.sig
 
         log_info "Using cosign to verify signature of desired zeitgeist version"
-        COSIGN_EXPERIMENTAL=true cosign verify-blob --cert $ZEITGEIST_CERT --signature $ZEITGEIST_SIG ${zeitgeist_executable_name}
-        ret=$?
+        cosign verify-blob --certificate $ZEITGEIST_CERT --signature $ZEITGEIST_SIG \
+          --certificate-identity "https://github.com/kubernetes-sigs/zeitgeist/.github/workflows/release.yml@refs/tags/v${{ inputs.zeitgeist-release }}" \
+          --certificate-oidc-issuer "https://token.actions.githubusercontent.com" ${zeitgeist_executable_name}
+        retVal=$?
         if [[ $retVal -eq 0 ]]; then
           $SUDO chmod +x ${zeitgeist_executable_name}
           log_info "Installation complete!"
@@ -143,8 +145,8 @@ runs:
         fi
 
     - if: ${{ runner.os == 'Linux' || runner.os == 'macOS' }}
-      run:  echo "${{ inputs.install-dir }}" >> $GITHUB_PATH
+      run: echo "${{ inputs.install-dir }}" >> $GITHUB_PATH
       shell: bash
     - if: ${{ runner.os == 'Windows' }}
-      run:  echo "${{ inputs.install-dir }}" | Out-File -FilePath $env:GITHUB_PATH -Encoding utf8 -Append
+      run: echo "${{ inputs.install-dir }}" | Out-File -FilePath $env:GITHUB_PATH -Encoding utf8 -Append
       shell: pwsh
