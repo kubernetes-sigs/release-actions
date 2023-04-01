@@ -1,0 +1,120 @@
+name: test-tejolote-action
+
+on:
+  pull_request:
+  push:
+    branches:
+      - 'main'
+
+jobs:
+  changes:
+    runs-on: ubuntu-latest
+    permissions:
+      pull-requests: read
+    outputs:
+      tejolote: ${{ steps.filter.outputs.tejolote }}
+
+    steps:
+      - uses: actions/checkout@8f4b7f84864484a7bf31766abe9204da3cbe65b3 # v3.5.0
+      - uses: dorny/paths-filter@4512585405083f25c027a35db413c2b3b9006d50 # v2.11.1
+        id: filter
+        with:
+          filters: |
+            tejolote:
+              - 'setup-tejolote/**'
+              - '.github/workflows/test-setup-tejolote.yml'
+
+  test_tejolote_action:
+    needs: changes
+    if: ${{ needs.changes.outputs.tejolote == 'true' }}
+    runs-on: ${{ matrix.os }}
+    strategy:
+      matrix:
+        os: [macos-latest, ubuntu-latest, windows-latest]
+    permissions: {}
+    name: Install tejolote and test presence in path
+    steps:
+      - uses: actions/checkout@8f4b7f84864484a7bf31766abe9204da3cbe65b3 # v3.5.0
+      - name: Install tejolote
+        uses: ./setup-tejolote
+      - name: Check install!
+        run: tejolote version
+      - name: Check root directory
+        run: |
+          if [[ $(git diff --stat) != '' ]]; then
+            echo 'should be clean'
+            exit 1
+          else
+            exit 0
+          fi
+        shell: bash
+
+  test_tejolote_action_custom_dir_root:
+    runs-on: ${{ matrix.os }}
+    needs: changes
+    if: ${{ needs.changes.outputs.tejolote == 'true' }}
+    strategy:
+      matrix:
+        os: [ubuntu-latest]
+    permissions: {}
+    name: Install Custom tejolote and test presence in path with custom root dir
+    steps:
+      - uses: actions/checkout@8f4b7f84864484a7bf31766abe9204da3cbe65b3 # v3.5.0
+      - name: Install tejolote
+        uses: ./setup-tejolote
+        with:
+          install-dir: /usr/bin
+          use-sudo: true
+      - name: Check install!
+        run: tejolote version
+      - name: Check install dir!
+        run: |
+          [[ $(dirname "$(which tejolote)") == /usr/bin ]]
+        shell: bash
+      - name: Check root directory
+        run: |
+          [[ -z $(git diff --stat) ]]
+        shell: bash
+
+  test_tejolote_action_custom_dir:
+    runs-on: ${{ matrix.os }}
+    needs: changes
+    if: ${{ needs.changes.outputs.tejolote == 'true' }}
+    strategy:
+      matrix:
+        os: [macos-latest, ubuntu-latest, windows-latest]
+    permissions: {}
+    name: Install Custom path tejolote and test presence in path
+    steps:
+      - uses: actions/checkout@8f4b7f84864484a7bf31766abe9204da3cbe65b3 # v3.5.0
+      - name: Install tejolote
+        uses: ./setup-tejolote
+        with:
+          install-dir: "$HOME/.tejolotetest"
+      - name: Check install!
+        run: tejolote version
+      - name: Check install dir!
+        run: |
+          [[ $(dirname "$(which tejolote)") == "$HOME/.tejolotetest" ]]
+        shell: bash
+      - name: Check root directory
+        run: |
+          [[ -z $(git diff --stat) ]]
+        shell: bash
+
+  test_tejolote_action_wrong:
+    runs-on: ${{ matrix.os }}
+    needs: changes
+    if: ${{ needs.changes.outputs.tejolote == 'true' }}
+    strategy:
+      matrix:
+        os: [macos-latest, ubuntu-latest, windows-latest]
+    permissions: {}
+    name: Try to install a wrong tejolote
+    steps:
+      - uses: actions/checkout@8f4b7f84864484a7bf31766abe9204da3cbe65b3 # v3.5.0
+      - name: Install tejolote
+        uses: ./setup-tejolote
+        with:
+          tejolote-release: 'honk'
+        continue-on-error: true
