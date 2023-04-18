@@ -10,7 +10,7 @@ inputs:
   tejolote-release:
     description: 'tejolote release version to be installed'
     required: false
-    default: '0.1.0'
+    default: '0.2.0'
   install-dir:
     description: 'Where to install the tejolote binary'
     required: false
@@ -50,15 +50,15 @@ runs:
           Linux)
             case ${{ runner.arch }} in
               X64)
-                desired_tejolote_filename='tejolote_${{ inputs.tejolote-release }}_linux_amd64'
+                desired_tejolote_filename='tejolote-amd64-linux'
                 ;;
 
               ARM)
-                desired_tejolote_filename='tejolote_${{ inputs.tejolote-release }}_linux_arm'
+                desired_tejolote_filename='tejolote-arm-linux'
                 ;;
 
               ARM64)
-                desired_tejolote_filename='tejolote_${{ inputs.tejolote-release }}_linux_arm64'
+                desired_tejolote_filename='tejolote-arm64-linux'
                 ;;
 
               *)
@@ -71,11 +71,11 @@ runs:
           macOS)
             case ${{ runner.arch }} in
               X64)
-                desired_tejolote_filename='tejolote_${{ inputs.tejolote-release }}_darwin_amd64'
+                desired_tejolote_filename='tejolote-amd64-darwin'
                 ;;
 
               ARM64)
-                desired_tejolote_filename='tejolote_${{ inputs.tejolote-release }}_darwin_arm64'
+                desired_tejolote_filename='tejolote-arm64-darwin'
                 ;;
 
               *)
@@ -88,7 +88,7 @@ runs:
           Windows)
             case ${{ runner.arch }} in
               X64)
-                desired_tejolote_filename='tejolote_${{ inputs.tejolote-release }}_windows_amd64.exe'
+                desired_tejolote_filename='tejolote-amd64-windows.exe'
                 tejolote_executable_name=tejolote.exe
                 ;;
               *)
