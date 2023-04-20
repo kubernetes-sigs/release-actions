@@ -2,7 +2,6 @@
 
 This action enables you to install [bom](https://github.com/kubernetes-sigs/bom)
 
-
 ## Usage
 
 This action currently supports GitHub-provided Linux, macOS and Windows runners (self-hosted runners may not work).
