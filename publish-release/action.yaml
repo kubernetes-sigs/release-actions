@@ -1,0 +1,82 @@
+# Copyright 2023 The Kubernetes Authors.
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
+name: publish-release
+author: puerco
+description: 'Runs publish release'
+branding:
+  icon: 'package'
+  color: 'blue'
+
+inputs:
+  assets:
+    description: "Assets to upload to the release page (see readme)."
+    type: string
+    required: false
+  
+  draft:
+    description: "Mark the release as draft"
+    type: boolean
+    required: false
+    default: false
+
+  sbom: 
+    description: "Generate an SBOM from the code"
+    type: boolean
+    required: false
+    default: true
+
+  template:
+    description: "Release template file"
+    required: false
+
+  name:
+    description: "Name for the release"
+    required: false
+
+  # Consider --noupdate Fail if the release already exists
+  # Consider -r, --repo repository slug containing the release page
+  # --sbom-format string          format to use for the SBOM [json|tag-value] (default "json")
+  # -s, --substitution strings        String substitution for the page template
+  # --repo-path string            Path to the source code repository (default ".")
+  # --release-notes-file string   Path to a release notes markdown file to include in the release
+
+runs:
+  using: "composite"
+  steps:
+    - name: Check out code onto GOPATH
+      uses: actions/checkout@c85c95e3d7251135ab7dc9ce3241c5835cc595a9 # v3.0.2
+
+    # Go is required to compute dependencies
+    - uses: actions/setup-go@93397bea11091df50f3d7e59dc26a7711a8bcfbe # v3.3.0
+      with:
+        go-version: '1.20'
+        check-latest: true
+
+    - shell: bash
+      run: |
+        #!/usr/bin/env bash
+        
+        if [ "${{ inputs.draft }}" = "true" ]; then
+          draft="--draft"
+        fi
+        
+        IFS='|' read -r -a assets <<< "${{ inputs.assets }}";
+
+        publish-release github \
+          --repo="${{ github.repository }}" \
+          --tag="${GITHUB_REF#refs/tags/}" --nomock ${draft} \
+          --name="${{ inputs.name }}" \
+          --template="${{ inputs.template }}" \
+          $(printf " --asset=\"%s\"" "${assets[@]}")
