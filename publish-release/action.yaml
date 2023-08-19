@@ -79,4 +79,4 @@ runs:
           --tag="${GITHUB_REF#refs/tags/}" --nomock ${draft} \
           --name="${{ inputs.name }}" \
           --template="${{ inputs.template }}" \
-          $(printf " --asset=\"%s\"" "${assets[@]}")
+          $(if [ "${#assets[@]}" -ne 0 ]; then printf " --asset=\"%s\"" "${assets[@]}"; fi )
