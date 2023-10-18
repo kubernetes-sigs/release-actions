@@ -29,7 +29,7 @@ jobs:
       tejolote: ${{ steps.filter.outputs.tejolote }}
 
     steps:
-      - uses: actions/checkout@8ade135a41bc03ea155e62e844d188df1ea18608 # v4.1.0
+      - uses: actions/checkout@b4ffde65f46336ab88eb53be808477a3936bae11 # v4.1.1
       - uses: dorny/paths-filter@4512585405083f25c027a35db413c2b3b9006d50 # v2.11.1
         id: filter
         with:
@@ -48,7 +48,7 @@ jobs:
     permissions: {}
     name: Install tejolote and test presence in path
     steps:
-      - uses: actions/checkout@8ade135a41bc03ea155e62e844d188df1ea18608 # v4.1.0
+      - uses: actions/checkout@b4ffde65f46336ab88eb53be808477a3936bae11 # v4.1.1
       - name: Install tejolote
         uses: ./setup-tejolote
       - name: Check install!
@@ -73,7 +73,7 @@ jobs:
     permissions: {}
     name: Install Custom tejolote and test presence in path with custom root dir
     steps:
-      - uses: actions/checkout@8ade135a41bc03ea155e62e844d188df1ea18608 # v4.1.0
+      - uses: actions/checkout@b4ffde65f46336ab88eb53be808477a3936bae11 # v4.1.1
       - name: Install tejolote
         uses: ./setup-tejolote
         with:
@@ -100,7 +100,7 @@ jobs:
     permissions: {}
     name: Install Custom path tejolote and test presence in path
     steps:
-      - uses: actions/checkout@8ade135a41bc03ea155e62e844d188df1ea18608 # v4.1.0
+      - uses: actions/checkout@b4ffde65f46336ab88eb53be808477a3936bae11 # v4.1.1
       - name: Install tejolote
         uses: ./setup-tejolote
         with:
@@ -126,7 +126,7 @@ jobs:
     permissions: {}
     name: Try to install a wrong tejolote
     steps:
-      - uses: actions/checkout@8ade135a41bc03ea155e62e844d188df1ea18608 # v4.1.0
+      - uses: actions/checkout@b4ffde65f46336ab88eb53be808477a3936bae11 # v4.1.1
       - name: Install tejolote
         uses: ./setup-tejolote
         with:
