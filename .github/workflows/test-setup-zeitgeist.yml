@@ -72,8 +72,8 @@ jobs:
       matrix:
         os: [macos-latest, ubuntu-latest, windows-latest]
         go_version:
-          - '1.19'
           - '1.20'
+          - '1.21'
     name: Try to install zeitgeist with go ${{ matrix.go_version }}
     steps:
       - uses: actions/checkout@b4ffde65f46336ab88eb53be808477a3936bae11 # v4.1.1

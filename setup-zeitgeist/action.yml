@@ -23,7 +23,7 @@ inputs:
   zeitgeist-release:
     description: 'zeitgeist release version to be installed'
     required: false
-    default: '0.4.1'
+    default: '0.4.3'
   install-dir:
     description: 'Where to install the zeitgeist binary'
     required: false
@@ -71,15 +71,15 @@ runs:
           Linux)
             case ${{ runner.arch }} in
               X64)
-                desired_zeitgeist_filename='zeitgeist_${{ inputs.zeitgeist-release }}_linux_amd64'
+                desired_zeitgeist_filename='zeitgeist-amd64-linux'
                 ;;
 
               ARM)
-                desired_zeitgeist_filename='zeitgeist_${{ inputs.zeitgeist-release }}_linux_arm'
+                desired_zeitgeist_filename='zeitgeist-arm-linux'
                 ;;
 
               ARM64)
-                desired_zeitgeist_filename='zeitgeist_${{ inputs.zeitgeist-release }}_linux_arm64'
+                desired_zeitgeist_filename='zeitgeist-arm64-linux'
                 ;;
 
               *)
@@ -92,11 +92,11 @@ runs:
           macOS)
             case ${{ runner.arch }} in
               X64)
-                desired_zeitgeist_filename='zeitgeist_${{ inputs.zeitgeist-release }}_darwin_amd64'
+                desired_zeitgeist_filename='zeitgeist-amd64-darwin'
                 ;;
 
               ARM64)
-                desired_zeitgeist_filename='zeitgeist_${{ inputs.zeitgeist-release }}_darwin_arm64'
+                desired_zeitgeist_filename='zeitgeist-arm64-darwin'
                 ;;
 
               *)
@@ -109,7 +109,7 @@ runs:
           Windows)
             case ${{ runner.arch }} in
               X64)
-                desired_zeitgeist_filename='zeitgeist_${{ inputs.zeitgeist-release }}_windows_amd64.exe'
+                desired_zeitgeist_filename='zeitgeist-amd64-windows.exe'
                 zeitgeist_executable_name=zeitgeist.exe
                 ;;
               *)
