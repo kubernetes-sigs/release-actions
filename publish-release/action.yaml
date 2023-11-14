@@ -24,19 +24,16 @@ inputs:
     description: "Assets to upload to the release page (see readme)."
     type: string
     required: false
-  
   draft:
     description: "Mark the release as draft"
     type: boolean
     required: false
     default: false
-
-  sbom: 
+  sbom:
     description: "Generate an SBOM from the code"
     type: boolean
     required: false
     default: true
-
   template:
     description: "Release template file"
     required: false
@@ -61,17 +58,17 @@ runs:
     # Go is required to compute dependencies
     - uses: actions/setup-go@93397bea11091df50f3d7e59dc26a7711a8bcfbe # v3.3.0
       with:
-        go-version: '1.20'
+        go-version: '1.21'
         check-latest: true
 
     - shell: bash
       run: |
         #!/usr/bin/env bash
-        
+
         if [ "${{ inputs.draft }}" = "true" ]; then
           draft="--draft"
         fi
-        
+
         IFS='|' read -r -a assets <<< "${{ inputs.assets }}";
 
         publish-release github \
