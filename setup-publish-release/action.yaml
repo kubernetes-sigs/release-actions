@@ -33,17 +33,16 @@ runs:
 
     - uses: actions/setup-go@93397bea11091df50f3d7e59dc26a7711a8bcfbe # v3.3.0
       with:
-        go-version: '1.20'
+        go-version: '1.21'
         check-latest: true
 
     - shell: bash
       run: |
         #!/usr/bin/env bash
-        
+
         temp_dir="$(mktemp -d)" && \
           git clone --depth=1 -q https://github.com/kubernetes/release.git "${temp_dir}" && \
           cd "${temp_dir}/"  && \
           go build ./cmd/publish-release/ && \
           mv publish-release /usr/local/bin/ && \
           publish-release --help
-
