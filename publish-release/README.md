@@ -28,10 +28,10 @@ jobs:
 
     steps:
       - name: Install publish-release
-        uses: puerco/release-actions/setup-publish-release@main
+        uses: kubernetes-sigs/release-actions/setup-publish-release@main
 
       - name: Publish Release
-        uses: puerco/release-actions/publish-release@main
+        uses: kubernetes-sigs/release-actions/publish-release@main
         with:
             assets: "kubernetes.png|starship.toml"
         env:

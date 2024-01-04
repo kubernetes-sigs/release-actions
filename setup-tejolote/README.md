@@ -9,7 +9,7 @@ This action currently supports GitHub-provided Linux, macOS and Windows runners 
 Add the following entry to your Github workflow YAML file:
 
 ```yaml
-uses: puerco/release-actions/setup-tejolote@main
+uses: kubernetes-sigs/release-actions/setup-tejolote@main
 with:
   tejolote-release: '0.2.1' # optional
 ```
@@ -26,7 +26,7 @@ jobs:
     name: Install tejolote and test presence in path
     steps:
       - name: Install tejolote
-        uses: puerco/release-actions/setup-tejolote@main
+        uses: kubernetes-sigs/release-actions/setup-tejolote@main
         with:
           tejolote-release: '0.2.1' # optional
       - name: Check install!
@@ -45,7 +45,7 @@ jobs:
     name: Install tejolote and test presence in path
     steps:
       - name: Install tejolote
-        uses: puerco/release-actions/setup-tejolote@main
+        uses: kubernetes-sigs/release-actions/setup-tejolote@main
       - name: Check install!
         run: tejolote version
 ```

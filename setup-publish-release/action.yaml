@@ -14,16 +14,10 @@
 
 name: setup-publish-release
 author: puerco
-description: 'Install publish-release fromKubernetes SIG Release in your path'
+description: 'Install publish-release from Kubernetes SIG Release in your path'
 branding:
   icon: 'package'
   color: 'blue'
-
-inputs:
-  install-dir:
-    description: 'Where to install the binary'
-    required: false
-    default: '$HOME/.publish-release'
 
 runs:
   using: "composite"
