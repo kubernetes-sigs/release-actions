@@ -1,0 +1,89 @@
+# Copyright 2023 The Kubernetes Authors.
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
+name: test-release-notes-action
+
+on:
+  pull_request:
+  push:
+    branches:
+      - 'main'
+
+jobs:
+  changes:
+    runs-on: ubuntu-latest
+    permissions:
+      pull-requests: read
+    outputs:
+      relnotes: ${{ steps.filter.outputs.relnotes }}
+
+    steps:
+      - uses: actions/checkout@b4ffde65f46336ab88eb53be808477a3936bae11 # v4.1.1
+      - uses: dorny/paths-filter@4512585405083f25c027a35db413c2b3b9006d50 # v2.11.1
+        id: filter
+        with:
+          filters: |
+            relnotes:
+              - 'setup-release-notes/**'
+              - '.github/workflows/test-setup-release-notes.yaml'
+
+  test_relnotes_action:
+    needs: changes
+    if: ${{ needs.changes.outputs.relnotes == 'true' }}
+    runs-on: ${{ matrix.os }}
+    strategy:
+      matrix:
+        os: [macos-latest, ubuntu-latest]
+    permissions: {}
+    name: Install release-notes and test presence in path
+    steps:
+      - uses: actions/checkout@b4ffde65f46336ab88eb53be808477a3936bae11 # v4.1.1
+      - name: Install release notes
+        uses: ./setup-release-notes
+      - name: Check install!
+        run: release-notes --help
+      - name: Check root directory
+        run: |
+          if [[ $(git diff --stat) != '' ]]; then
+            echo 'should be clean'
+            exit 1
+          else
+            exit 0
+          fi
+        shell: bash
+
+  test_relnotes_with_go_install:
+    permissions: {}
+    needs: changes
+    if: ${{ needs.changes.outputs.relnotes == 'true' }}
+    runs-on: ${{ matrix.os }}
+    strategy:
+      matrix:
+        os: [macos-latest, ubuntu-latest]
+        go_version:
+          - '1.20'
+          - '1.21'
+    name: Try to install release-notes with go ${{ matrix.go_version }}
+    steps:
+      - uses: actions/checkout@b4ffde65f46336ab88eb53be808477a3936bae11 # v4.1.1
+      - uses: actions/setup-go@0c52d547c9bc32b1aa3301fd7a9cb496313a4491 # v5.0.0
+        with:
+          go-version: ${{ matrix.go_version }}
+          check-latest: true
+      - name: Install release-notes
+        uses: ./setup-release-notes
+      - name: Check install!
+        run: release-notes --help
+
+  
