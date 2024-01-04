@@ -1,4 +1,4 @@
-# Copyright 2023 The Kubernetes Authors.
+# Copyright 2024 The Kubernetes Authors.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -14,7 +14,7 @@
 
 name: setup-publish-release
 author: puerco
-description: 'Install publish-release from Kubernetes SIG Release in your path'
+description: 'Install release-notes from Kubernetes SIG Release in your runner'
 branding:
   icon: 'package'
   color: 'blue'
@@ -37,6 +37,6 @@ runs:
         temp_dir="$(mktemp -d)" && \
           git clone --depth=1 -q https://github.com/kubernetes/release.git "${temp_dir}" && \
           cd "${temp_dir}/"  && \
-          go build ./cmd/publish-release/ && \
-          mv publish-release /usr/local/bin/ && \
-          publish-release --help
+          go build ./cmd/release-notes/ && \
+          mv release-notes /usr/local/bin/ && \
+          release-notes --help

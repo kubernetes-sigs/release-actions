@@ -10,7 +10,7 @@ This action currently supports GitHub-provided Linux, macOS and Windows runners 
 Add the following entry to your Github workflow YAML file:
 
 ```yaml
-uses: cpanato/setup-zeitgeist@main
+uses: kubernetes-sigs/setup-zeitgeist@main
 with:
   zeitgeist-release: '0.4.3' # optional
 ```
@@ -27,7 +27,7 @@ jobs:
     name: Install zeitgeist and test presence in path
     steps:
       - name: Install zeitgeist
-        uses: cpanato/setup-zeitgeist@main
+        uses: kubernetes-sigs/setup-zeitgeist@main
         with:
           zeitgeist-release: '0.4.3' # optional
       - name: Check install!
@@ -46,7 +46,7 @@ jobs:
     name: Install zeitgeist and test presence in path
     steps:
       - name: Install zeitgeist
-        uses: puerco/release-actions/setup-zeitgeist@main
+        uses: kubernetes-sigs/release-actions/setup-zeitgeist@main
       - name: Check install!
         run: zeitgeist version
 ```
@@ -70,7 +70,7 @@ jobs:
           go-version: 1.21
           check-latest: true
       - name: Install zeitgeist
-        uses: puerco/release-actions/setup-zeitgeist@main
+        uses: kubernetes-sigs/release-actions/setup-zeitgeist@main
         with:
           zeitgeist-release: main
       - name: Check install!
