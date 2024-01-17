@@ -23,7 +23,7 @@ inputs:
   bom-release:
     description: 'bom release version to be installed'
     required: false
-    default: '0.5.1'
+    default: '0.6.0'
   install-dir:
     description: 'Where to install the bom binary'
     required: false
@@ -41,7 +41,7 @@ runs:
         use-sudo: ${{ inputs.use-sudo }}
     - shell: bash
       run: |
-        #!/bin/bash
+        #!/usr/bin/env bash
         # bom install script
         shopt -s expand_aliases
         if [ -z "$NO_COLOR" ]; then

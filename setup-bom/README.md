@@ -9,9 +9,9 @@ This action currently supports GitHub-provided Linux, macOS and Windows runners 
 Add the following entry to your Github workflow YAML file:
 
 ```yaml
-uses: kubernetes-sigs/release-action/setup-bom@main
+uses: kubernetes-sigs/release-actions/setup-bom@main
 with:
-  bom-release: '0.5.1' # optional
+  bom-release: '0.6.0' # optional
 ```
 
 Example using a pinned version:
@@ -28,7 +28,7 @@ jobs:
       - name: Install bom
         uses: kubernetes-sigs/release-actions/setup-bom@main
         with:
-          bom-release: '0.5.1' # optional
+          bom-release: '0.6.0' # optional
       - name: Check install!
         run: bom version
 ```
