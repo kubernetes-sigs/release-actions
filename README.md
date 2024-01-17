@@ -4,7 +4,7 @@ A set of GitHub actions based on the Kubernetes Release Engineering Tooling
 
 ## Installer Actions
 
-The following actions install the Kubernetes Release Engineering tools into 
+The following actions install the Kubernetes Release Engineering tools into
 your runner:
 
 | Action | Description |
@@ -17,7 +17,7 @@ your runner:
 ## Task-specific Actions
 
 These actions are designed to perform a task using the tools. If there is not a
-task action for the tool you are looking for, you can still run it using a 
+task action for the tool you are looking for, you can still run it using a
 `runs:` step.
 
 | Action | Description |
