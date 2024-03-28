@@ -11,7 +11,7 @@ Add the following entry to your Github workflow YAML file:
 ```yaml
 uses: kubernetes-sigs/release-actions/setup-tejolote@main
 with:
-  tejolote-release: '0.2.1' # optional
+  tejolote-release: '0.3.0' # optional
 ```
 
 Example using a pinned version:
@@ -28,7 +28,7 @@ jobs:
       - name: Install tejolote
         uses: kubernetes-sigs/release-actions/setup-tejolote@main
         with:
-          tejolote-release: '0.2.1' # optional
+          tejolote-release: '0.3.0' # optional
       - name: Check install!
         run: tejolote version
 ```
