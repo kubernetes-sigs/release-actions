@@ -12,6 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+---
 version: 2
 updates:
   # CI workflows
@@ -38,6 +39,13 @@ updates:
   # setup-tejolote
   - package-ecosystem: "github-actions"
     directory: "/setup-tejolote"
+    schedule:
+      interval: "daily"
+    open-pull-requests-limit: 10
+
+  # publish-release
+  - package-ecosystem: "github-actions"
+    directory: "/publish-release"
     schedule:
       interval: "daily"
     open-pull-requests-limit: 10
