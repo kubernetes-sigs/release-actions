@@ -84,5 +84,6 @@ The following optional inputs:
 | Input | Description |
 | --- | --- |
 | `zeitgeist-release` | `zeitgeist` version to use instead of the default. |
+| `remote-version` | install `zeitgeist` that can check depencies from upstream repositories/registries. If false will install the local version only that only check local dependencies. |
 | `install-dir` | directory to place the `zeitgeist` binary into instead of the default (`$HOME/.zeitgeist`). |
 | `use-sudo` | set to `true` if `install-dir` location requires sudo privs. Defaults to false. |

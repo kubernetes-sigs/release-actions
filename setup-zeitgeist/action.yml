@@ -23,7 +23,11 @@ inputs:
   zeitgeist-release:
     description: 'zeitgeist release version to be installed'
     required: false
-    default: '0.4.3'
+    default: '0.5.3'
+  remote-version:
+    description: 'install zeitgeist that can check depencies from upstream repositories/registries. If false will install the local version only that only check local dependencies'
+    required: false
+    default: 'true'
   install-dir:
     description: 'Where to install the zeitgeist binary'
     required: false
@@ -41,7 +45,7 @@ runs:
         use-sudo: ${{ inputs.use-sudo }}
     - shell: bash
       run: |
-        #!/bin/bash
+        #!/usr/bin/env bash
         # zeitgeist install script
         shopt -s expand_aliases
         if [ -z "$NO_COLOR" ]; then
@@ -55,7 +59,12 @@ runs:
 
         mkdir -p ${{ inputs.install-dir }}
 
-        if [[ ${{ inputs.zeitgeist-release }} == "main" ]]; then
+        export ZEITGIEST_REMOTE=
+        if [[ ${{ inputs.remote-version }} == "true" ]]; then
+          export ZEITGIEST_REMOTE=-remote
+        fi
+
+        if [[ ${{ inputs.zeitgeist-release }} == "main" && ${{ inputs.remote-version }} == "false" ]]; then
           log_info "installing zeitgeist via 'go install' from its main version"
           GOBIN=$(go env GOPATH)/bin
           go install sigs.k8s.io/zeitgeist@master
@@ -71,15 +80,15 @@ runs:
           Linux)
             case ${{ runner.arch }} in
               X64)
-                desired_zeitgeist_filename='zeitgeist-amd64-linux'
+                desired_zeitgeist_filename="zeitgeist${ZEITGIEST_REMOTE}-amd64-linux"
                 ;;
 
               ARM)
-                desired_zeitgeist_filename='zeitgeist-arm-linux'
+                desired_zeitgeist_filename="zeitgeist${ZEITGIEST_REMOTE}-arm-linux"
                 ;;
 
               ARM64)
-                desired_zeitgeist_filename='zeitgeist-arm64-linux'
+                desired_zeitgeist_filename="zeitgeist${ZEITGIEST_REMOTE}-arm64-linux"
                 ;;
 
               *)
@@ -92,11 +101,11 @@ runs:
           macOS)
             case ${{ runner.arch }} in
               X64)
-                desired_zeitgeist_filename='zeitgeist-amd64-darwin'
+                desired_zeitgeist_filename="zeitgeist${ZEITGIEST_REMOTE}-amd64-darwin"
                 ;;
 
               ARM64)
-                desired_zeitgeist_filename='zeitgeist-arm64-darwin'
+                desired_zeitgeist_filename="zeitgeist${ZEITGIEST_REMOTE}-arm64-darwin"
                 ;;
 
               *)
@@ -109,7 +118,7 @@ runs:
           Windows)
             case ${{ runner.arch }} in
               X64)
-                desired_zeitgeist_filename='zeitgeist-amd64-windows.exe'
+                desired_zeitgeist_filename="zeitgeist${ZEITGIEST_REMOTE}-amd64-windows.exe"
                 zeitgeist_executable_name=zeitgeist.exe
                 ;;
               *)
