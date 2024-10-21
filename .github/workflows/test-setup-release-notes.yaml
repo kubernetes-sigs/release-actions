@@ -72,8 +72,8 @@ jobs:
       matrix:
         os: [macos-latest, ubuntu-latest]
         go_version:
-          - '1.20'
-          - '1.21'
+          - '1.22'
+          - '1.23'
     name: Try to install release-notes with go ${{ matrix.go_version }}
     steps:
       - uses: actions/checkout@eef61447b9ff4aafe5dcd4e0bbf5d482be7e7871 # v4.2.1
