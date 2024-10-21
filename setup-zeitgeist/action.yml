@@ -23,7 +23,7 @@ inputs:
   zeitgeist-release:
     description: 'zeitgeist release version to be installed'
     required: false
-    default: '0.5.3'
+    default: '0.5.4'
   remote-version:
     description: 'install zeitgeist that can check depencies from upstream repositories/registries. If false will install the local version only that only check local dependencies'
     required: false
