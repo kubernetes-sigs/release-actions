@@ -21,31 +21,25 @@ updates:
     schedule:
       interval: "daily"
     open-pull-requests-limit: 10
+    groups:
+      ghactions:
+        update-types:
+          - "minor"
+          - "patch"
 
-  # setup-zeitgeist
+  # Actions
   - package-ecosystem: "github-actions"
-    directory: "/setup-zeitgeist"
+    directories:
+      - "/setup-zeitgeist"
+      - "/setup-bom"
+      - "/setup-tejolote"
+      - "/publish-release"
+      - "setup-release-notes"
     schedule:
       interval: "daily"
     open-pull-requests-limit: 10
-
-  # setup-bom
-  - package-ecosystem: "github-actions"
-    directory: "/setup-bom"
-    schedule:
-      interval: "daily"
-    open-pull-requests-limit: 10
-
-  # setup-tejolote
-  - package-ecosystem: "github-actions"
-    directory: "/setup-tejolote"
-    schedule:
-      interval: "daily"
-    open-pull-requests-limit: 10
-
-  # publish-release
-  - package-ecosystem: "github-actions"
-    directory: "/publish-release"
-    schedule:
-      interval: "daily"
-    open-pull-requests-limit: 10
+    groups:
+      actions:
+        update-types:
+          - "minor"
+          - "patch"
