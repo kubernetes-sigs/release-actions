@@ -12,7 +12,7 @@ Add the following entry to your Github workflow YAML file:
 ```yaml
 uses: kubernetes-sigs/setup-zeitgeist@main
 with:
-  zeitgeist-release: '0.4.3' # optional
+  zeitgeist-release: '0.5.4' # optional
 ```
 
 Example using a pinned version:
@@ -29,7 +29,7 @@ jobs:
       - name: Install zeitgeist
         uses: kubernetes-sigs/setup-zeitgeist@main
         with:
-          zeitgeist-release: '0.4.3' # optional
+          zeitgeist-release: '0.5.4' # optional
       - name: Check install!
         run: zeitgeist version
 ```
@@ -67,7 +67,7 @@ jobs:
       - name: Install go
         uses: actions/setup-go@v3
         with:
-          go-version: 1.21
+          go-version: 1.23
           check-latest: true
       - name: Install zeitgeist
         uses: kubernetes-sigs/release-actions/setup-zeitgeist@main
