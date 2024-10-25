@@ -70,7 +70,7 @@ runs:
         use-sudo: ${{ inputs.use-sudo }}
 
     # if requested to install from go install
-    - uses: actions/setup-go@41dfa10bad2bb2ae585af6ee5bb4d7d973ad74ed # v3.3.0
+    - uses: actions/setup-go@41dfa10bad2bb2ae585af6ee5bb4d7d973ad74ed # v5.1.0
       if: ${{ inputs.publish-release-version == 'main' }}
       with:
         go-version: '1.23'
