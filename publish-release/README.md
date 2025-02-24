@@ -27,9 +27,6 @@ jobs:
       contents: write # needed to write releases
 
     steps:
-      - name: Install publish-release
-        uses: kubernetes-sigs/release-actions/setup-publish-release@main
-
       - name: Publish Release
         uses: kubernetes-sigs/release-actions/publish-release@main
         with:
@@ -51,5 +48,6 @@ The following optional inputs:
 | `assets` | Assets to upload to the release page. |
 | `draft` | Mark the release as draft. Defaults to false. |
 | `sbom` | Generate an SBOM from the code. Defaults to true. |
+| `sbom_format` | format to use for the SBOM [json|tag-value]. Defaults to "json". |
 | `template` | Release template file. |
 | `name` | Name for the release. |
