@@ -1,4 +1,4 @@
-# Copyright 2024 The Kubernetes Authors.
+# Copyright 2023 The Kubernetes Authors.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -12,31 +12,126 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-name: setup-publish-release
+name: setup-release-notes
 author: puerco
-description: 'Install release-notes from Kubernetes SIG Release in your runner'
+description: 'Installs the kubernetes release-notes utility and includes it in your path'
 branding:
   icon: 'package'
   color: 'blue'
-
+# This is pinned to the last major release, we have to bump it for each action version.
+inputs:
+  release-notes-release:
+    description: 'kubernetes/release version to be installed'
+    required: false
+    default: '0.18.0'
+  install-dir:
+    description: 'Where to install the release-notes binary'
+    required: false
+    default: '$HOME/.release-notes'
+  use-sudo:
+    description: 'set to true if install-dir location requires sudo privs'
+    required: false
+    default: 'false'
 runs:
   using: "composite"
   steps:
-    - name: Check out code onto GOPATH
-      uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
-
-    - uses: actions/setup-go@d35c59abb061a4a6fb18e82ac0862c26744d6ab5 # v5.5.0
+    - uses: sigstore/cosign-installer@d58896d6a1865668819e1d91763c7751a165e159 # v3.9.2
       with:
-        go-version: '1.23'
-        check-latest: true
-
+        install-dir: ${{ inputs.install-dir }}
+        use-sudo: ${{ inputs.use-sudo }}
     - shell: bash
       run: |
         #!/usr/bin/env bash
+        # release notes install script
+        shopt -s expand_aliases
+        if [ -z "$NO_COLOR" ]; then
+          alias log_info="echo -e \"\033[1;32mINFO\033[0m:\""
+          alias log_error="echo -e \"\033[1;31mERROR\033[0m:\""
+        else
+          alias log_info="echo \"INFO:\""
+          alias log_error="echo \"ERROR:\""
+        fi
+        set -e
 
-        temp_dir="$(mktemp -d)" && \
-          git clone --depth=1 -q https://github.com/kubernetes/release.git "${temp_dir}" && \
-          cd "${temp_dir}/"  && \
-          go build ./cmd/release-notes/ && \
-          mv release-notes /usr/local/bin/ && \
-          release-notes --help
+        mkdir -p ${{ inputs.install-dir }}
+
+        trap "popd >/dev/null" EXIT
+
+        pushd ${{ inputs.install-dir }} > /dev/null
+        rn_executable_name='release-notes'
+        case ${{ runner.os }} in
+          Linux)
+            case ${{ runner.arch }} in
+              X64)
+                desired_rn_filename='release-notes-amd64-linux'
+                ;;
+
+              ARM64)
+                desired_rn_filename='release-notes-arm64-linux'
+                ;;
+
+              *)
+                log_error "unsupported architecture $arch"
+                exit 1
+                ;;
+            esac
+            ;;
+
+          macOS)
+            case ${{ runner.arch }} in
+              X64)
+                desired_rn_filename='release-notes-amd64-darwin'
+                ;;
+
+              ARM64)
+                desired_rn_filename='release-notes-arm64-darwin'
+                ;;
+
+              *)
+                log_error "unsupported architecture $arch"
+                exit 1
+                ;;
+            esac
+            ;;
+
+          *)
+            log_error "unsupported architecture $arch"
+            exit 1
+            ;;
+        esac
+
+        SUDO=
+        if "${{ inputs.use-sudo }}" == "true" && command -v sudo >/dev/null; then
+          SUDO=sudo
+        fi
+
+        semver='^([0-9]+\.){0,2}(\*|[0-9]+)$'
+        if [[ ${{ inputs.release-notes-release }} =~ $semver ]]; then
+          log_info "Custom release-notes version '${{ inputs.release-notes-release }}' requested"
+        else
+          log_error "Unable to validate requested release-notes version: '${{ inputs.release-notes-release }}'"
+          exit 1
+        fi
+
+        # Download custom release-notes
+        log_info "Downloading platform-specific version '${{ inputs.release-notes-release }}' of release-notes...\n      https://github.com/kubernetes/release/releases/download/v${{ inputs.release-notes-release }}/${desired_rn_filename}"
+        $SUDO curl -sL https://github.com/kubernetes/release/releases/download/v${{ inputs.release-notes-release }}/${desired_rn_filename} -o ${rn_executable_name}
+
+        RN_CERT=https://github.com/kubernetes/release/releases/download/v${{ inputs.release-notes-release }}/${desired_rn_filename}.pem
+        RN_SIG=https://github.com/kubernetes/release/releases/download/v${{ inputs.release-notes-release }}/${desired_rn_filename}.sig
+
+        log_info "Using cosign to verify signature of desired release-notes version"
+        cosign verify-blob --certificate $RN_CERT --signature $RN_SIG \
+          --certificate-identity "https://github.com/kubernetes/release/.github/workflows/release.yml@refs/tags/v${{ inputs.release-notes-release }}" \
+          --certificate-oidc-issuer "https://token.actions.githubusercontent.com" ${rn_executable_name}
+        retVal=$?
+        if [[ $retVal -eq 0 ]]; then
+          $SUDO chmod +x ${rn_executable_name}
+          log_info "Installation complete!"
+        else
+          log_error "Unable to validate the release-notes binary: '${{ inputs.release-notes-release }}'"
+          exit 1
+        fi
+
+    - run: echo "${{ inputs.install-dir }}" >> $GITHUB_PATH
+      shell: bash
