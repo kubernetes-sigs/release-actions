@@ -16,20 +16,28 @@ name: test-publish-release-action
 
 on:
   pull_request:
+    branches:
+      - 'main'
   push:
     branches:
       - 'main'
 
+permissions: {}
+
 jobs:
   changes:
     runs-on: ubuntu-latest
+
     permissions:
       pull-requests: read
+      contents: read
+
     outputs:
       pr: ${{ steps.filter.outputs.pr }}
 
     steps:
       - uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 # v5.0.0
+
       - uses: dorny/paths-filter@de90cc6fb38fc0963ad72b210f1f284cd68cea36 # v3.0.2
         id: filter
         with:
@@ -39,26 +47,34 @@ jobs:
               - '.github/workflows/test-publish-release.yaml'
 
   test_publish_release_action:
-    needs: changes
     if: ${{ needs.changes.outputs.pr == 'true' }}
-    runs-on: ${{ matrix.os }}
+    needs:
+      - changes
     strategy:
       matrix:
         os:
           - macos-latest
           - ubuntu-latest
 
-    permissions: {}
+    runs-on: ${{ matrix.os }}
+
+    permissions:
+      contents: read
 
     name: Install publish-release and test presence in path
     steps:
       - uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 # v5.0.0
+        with:
+          persist-credentials: false
+
       - name: Install publish-release
         uses: ./publish-release
         with:
           install-only: 'true'
+
       - name: Check install!
         run: publish-release help
+
       - name: Check root directory
         run: |
           if [[ $(git diff --stat) != '' ]]; then
@@ -70,72 +86,104 @@ jobs:
         shell: bash
 
   test_publish_release_action_custom_dir_root:
-    runs-on: ubuntu-latest
-    needs: changes
     if: ${{ needs.changes.outputs.pr == 'true' }}
-    permissions: {}
+    needs:
+      - changes
+
+    runs-on: ubuntu-latest
+
+    permissions:
+      contents: read
+
     name: Install Custom publish-release and test presence in path with custom root dir
     steps:
       - uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 # v5.0.0
+        with:
+          persist-credentials: false
+
       - name: Install publish-release
         uses: ./publish-release
         with:
           install-only: 'true'
           install-dir: /usr/bin
           use-sudo: true
+
       - name: Check install!
         run: publish-release help
+
       - name: Check install dir!
         run: |
           [[ $(dirname "$(which publish-release)") == /usr/bin ]]
         shell: bash
+
       - name: Check root directory
         run: |
           [[ -z $(git diff --stat) ]]
         shell: bash
 
   test_publish_release_action_custom_dir:
-    runs-on: ${{ matrix.os }}
-    needs: changes
     if: ${{ needs.changes.outputs.pr == 'true' }}
+    needs:
+      - changes
+
     strategy:
       matrix:
         os:
           - macos-latest
           - ubuntu-latest
-    permissions: {}
+
+    runs-on: ${{ matrix.os }}
+
+    permissions:
+      contents: read
+
     name: Install Custom path publish-release and test presence in path
     steps:
       - uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 # v5.0.0
+        with:
+          persist-credentials: false
+
       - name: Install publish-release
         uses: ./publish-release
         with:
           install-only: 'true'
           install-dir: "$HOME/.prtest"
+
       - name: Check install!
         run: publish-release help
+
       - name: Check install dir!
         run: |
           [[ $(dirname "$(which publish-release)") == "$HOME/.prtest" ]]
         shell: bash
+
       - name: Check root directory
         run: |
           [[ -z $(git diff --stat) ]]
         shell: bash
 
   test_publish_release_action_wrong:
-    runs-on: ${{ matrix.os }}
-    needs: changes
     if: ${{ needs.changes.outputs.pr == 'true' }}
+    needs:
+      - changes
+
     strategy:
       matrix:
         os:
           - macos-latest
           - ubuntu-latest
-    permissions: {}
+
+    runs-on: ${{ matrix.os }}
+
+    permissions:
+      contents: read
+
     name: Try to install a wrong publish-release
     steps:
       - uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 # v5.0.0
+        with:
+          persist-credentials: false
+
       - name: Install publish-release
         uses: ./publish-release
         with:

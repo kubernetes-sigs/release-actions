@@ -16,20 +16,28 @@ name: test-bom-action
 
 on:
   pull_request:
+    branches:
+      - 'main'
   push:
     branches:
       - 'main'
 
+permissions: {}
+
 jobs:
   changes:
     runs-on: ubuntu-latest
+
     permissions:
       pull-requests: read
+      contents: read
+
     outputs:
       bom: ${{ steps.filter.outputs.bom }}
 
     steps:
       - uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 # v5.0.0
+
       - uses: dorny/paths-filter@de90cc6fb38fc0963ad72b210f1f284cd68cea36 # v3.0.2
         id: filter
         with:
@@ -39,20 +47,34 @@ jobs:
               - '.github/workflows/test-setup-bom.yml'
 
   test_bom_action:
-    needs: changes
     if: ${{ needs.changes.outputs.bom == 'true' }}
-    runs-on: ${{ matrix.os }}
+    needs:
+      - changes
+
     strategy:
       matrix:
-        os: [macos-latest, ubuntu-latest, windows-latest]
-    permissions: {}
+        os:
+          - macos-latest
+          - ubuntu-latest
+          - windows-latest
+
+    runs-on: ${{ matrix.os }}
+
+    permissions:
+      contents: read
+
     name: Install bom and test presence in path
     steps:
       - uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 # v5.0.0
+        with:
+          persist-credentials: false
+
       - name: Install bom
         uses: ./setup-bom
+
       - name: Check install!
         run: bom version
+
       - name: Check root directory
         run: |
           if [[ $(git diff --stat) != '' ]]; then
@@ -64,69 +86,104 @@ jobs:
         shell: bash
 
   test_bom_action_custom_dir_root:
-    runs-on: ${{ matrix.os }}
-    needs: changes
     if: ${{ needs.changes.outputs.bom == 'true' }}
-    strategy:
-      matrix:
-        os: [ubuntu-latest]
-    permissions: {}
+    needs:
+      - changes
+
+    runs-on: 'ubuntu-latest'
+
+    permissions:
+      contents: read
+
     name: Install Custom bom and test presence in path with custom root dir
     steps:
       - uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 # v5.0.0
+        with:
+          persist-credentials: false
+
       - name: Install bom
         uses: ./setup-bom
         with:
           install-dir: /usr/bin
           use-sudo: true
+
       - name: Check install!
         run: bom version
+
       - name: Check install dir!
         run: |
           [[ $(dirname "$(which bom)") == /usr/bin ]]
         shell: bash
+
       - name: Check root directory
         run: |
           [[ -z $(git diff --stat) ]]
         shell: bash
 
   test_bom_action_custom_dir:
-    runs-on: ${{ matrix.os }}
-    needs: changes
     if: ${{ needs.changes.outputs.bom == 'true' }}
+    needs:
+      - changes
+
     strategy:
       matrix:
-        os: [macos-latest, ubuntu-latest, windows-latest]
-    permissions: {}
+        os:
+          - macos-latest
+          - ubuntu-latest
+          - windows-latest
+
+    runs-on: ${{ matrix.os }}
+
+    permissions:
+      contents: read
+
     name: Install Custom path bom and test presence in path
     steps:
       - uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 # v5.0.0
+        with:
+          persist-credentials: false
+
       - name: Install bom
         uses: ./setup-bom
         with:
           install-dir: "$HOME/.bomtest"
+
       - name: Check install!
         run: bom version
+
       - name: Check install dir!
         run: |
           [[ $(dirname "$(which bom)") == "$HOME/.bomtest" ]]
         shell: bash
+
       - name: Check root directory
         run: |
           [[ -z $(git diff --stat) ]]
         shell: bash
 
   test_bom_action_wrong:
-    runs-on: ${{ matrix.os }}
-    needs: changes
     if: ${{ needs.changes.outputs.bom == 'true' }}
+    needs:
+      - changes
+
     strategy:
       matrix:
-        os: [macos-latest, ubuntu-latest, windows-latest]
-    permissions: {}
+        os:
+          - macos-latest
+          - ubuntu-latest
+          - windows-latest
+
+    runs-on: ${{ matrix.os }}
+
+    permissions:
+      contents: read
+
     name: Try to install a wrong bom
     steps:
       - uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 # v5.0.0
+        with:
+          persist-credentials: false
+
       - name: Install bom
         uses: ./setup-bom
         with:
