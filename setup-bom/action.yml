@@ -23,7 +23,7 @@ inputs:
   bom-release:
     description: 'bom release version to be installed'
     required: false
-    default: '0.6.0'
+    default: '0.7.1'
   install-dir:
     description: 'Where to install the bom binary'
     required: false
