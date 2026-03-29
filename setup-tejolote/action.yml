@@ -23,7 +23,7 @@ inputs:
   tejolote-release:
     description: 'tejolote release version to be installed'
     required: false
-    default: '0.4.3'
+    default: '0.4.4'
   install-dir:
     description: 'Where to install the tejolote binary'
     required: false

@@ -23,7 +23,7 @@ inputs:
   release-notes-release:
     description: 'kubernetes/release version to be installed'
     required: false
-    default: '0.18.0'
+    default: '0.21.0'
   install-dir:
     description: 'Where to install the release-notes binary'
     required: false
