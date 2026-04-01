@@ -23,7 +23,7 @@ inputs:
   tejolote-release:
     description: 'tejolote release version to be installed'
     required: false
-    default: '0.4.4'
+    default: '0.4.7'
   install-dir:
     description: 'Where to install the tejolote binary'
     required: false
@@ -133,11 +133,11 @@ runs:
         log_info "Downloading platform-specific version '${{ inputs.tejolote-release }}' of tejolote...\n      https://github.com/kubernetes-sigs/tejolote/releases/download/v${{ inputs.tejolote-release }}/${desired_tejolote_filename}"
         $SUDO curl -sL https://github.com/kubernetes-sigs/tejolote/releases/download/v${{ inputs.tejolote-release }}/${desired_tejolote_filename} -o ${tejolote_executable_name}
 
-        TEJOLOTE_CERT=https://github.com/kubernetes-sigs/tejolote/releases/download/v${{ inputs.tejolote-release }}/${desired_tejolote_filename}.pem
-        TEJOLOTE_SIG=https://github.com/kubernetes-sigs/tejolote/releases/download/v${{ inputs.tejolote-release }}/${desired_tejolote_filename}.sig
+        TEJOLOTE_BUNDLE_URL=https://github.com/kubernetes-sigs/tejolote/releases/download/v${{ inputs.tejolote-release }}/${desired_tejolote_filename}.sigstore.json
+        $SUDO curl -sL "$TEJOLOTE_BUNDLE_URL" -o ${desired_tejolote_filename}.sigstore.json
 
         log_info "Using cosign to verify signature of desired tejolote version"
-        cosign verify-blob --certificate $TEJOLOTE_CERT --signature $TEJOLOTE_SIG \
+        cosign verify-blob --bundle ${desired_tejolote_filename}.sigstore.json \
           --certificate-identity "https://github.com/kubernetes-sigs/tejolote/.github/workflows/release.yml@refs/tags/v${{ inputs.tejolote-release }}" \
           --certificate-oidc-issuer "https://token.actions.githubusercontent.com" ${tejolote_executable_name}
         retVal=$?
