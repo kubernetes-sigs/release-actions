@@ -134,12 +134,21 @@ runs:
         $SUDO curl -sL https://github.com/kubernetes-sigs/tejolote/releases/download/v${{ inputs.tejolote-release }}/${desired_tejolote_filename} -o ${tejolote_executable_name}
 
         TEJOLOTE_BUNDLE_URL=https://github.com/kubernetes-sigs/tejolote/releases/download/v${{ inputs.tejolote-release }}/${desired_tejolote_filename}.sigstore.json
-        $SUDO curl -sL "$TEJOLOTE_BUNDLE_URL" -o ${desired_tejolote_filename}.sigstore.json
+        TEJOLOTE_CERT=https://github.com/kubernetes-sigs/tejolote/releases/download/v${{ inputs.tejolote-release }}/${desired_tejolote_filename}.pem
+        TEJOLOTE_SIG=https://github.com/kubernetes-sigs/tejolote/releases/download/v${{ inputs.tejolote-release }}/${desired_tejolote_filename}.sig
 
         log_info "Using cosign to verify signature of desired tejolote version"
-        cosign verify-blob --bundle ${desired_tejolote_filename}.sigstore.json \
-          --certificate-identity "https://github.com/kubernetes-sigs/tejolote/.github/workflows/release.yml@refs/tags/v${{ inputs.tejolote-release }}" \
-          --certificate-oidc-issuer "https://token.actions.githubusercontent.com" ${tejolote_executable_name}
+        if $SUDO curl -sfL "$TEJOLOTE_BUNDLE_URL" -o ${desired_tejolote_filename}.sigstore.json 2>/dev/null; then
+          log_info "Using bundle verification"
+          cosign verify-blob --bundle ${desired_tejolote_filename}.sigstore.json \
+            --certificate-identity "https://github.com/kubernetes-sigs/tejolote/.github/workflows/release.yml@refs/tags/v${{ inputs.tejolote-release }}" \
+            --certificate-oidc-issuer "https://token.actions.githubusercontent.com" ${tejolote_executable_name}
+        else
+          log_info "Using legacy certificate/signature verification"
+          cosign verify-blob --certificate $TEJOLOTE_CERT --signature $TEJOLOTE_SIG \
+            --certificate-identity "https://github.com/kubernetes-sigs/tejolote/.github/workflows/release.yml@refs/tags/v${{ inputs.tejolote-release }}" \
+            --certificate-oidc-issuer "https://token.actions.githubusercontent.com" ${tejolote_executable_name}
+        fi
         retVal=$?
         if [[ $retVal -eq 0 ]]; then
           $SUDO chmod +x ${tejolote_executable_name}

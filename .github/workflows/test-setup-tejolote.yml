@@ -160,6 +160,29 @@ jobs:
           [[ -z $(git diff --stat) ]]
         shell: bash
 
+  test_tejolote_action_legacy:
+    if: ${{ needs.changes.outputs.tejolote == 'true' }}
+    needs:
+      - changes
+    runs-on: 'ubuntu-latest'
+
+    permissions:
+      contents: read
+
+    name: Install legacy tejolote version with certificate/signature verification
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          persist-credentials: false
+
+      - name: Install tejolote
+        uses: ./setup-tejolote
+        with:
+          tejolote-release: '0.4.4'
+
+      - name: Check install!
+        run: tejolote version
+
   test_tejolote_action_wrong:
     if: ${{ needs.changes.outputs.tejolote == 'true' }}
     needs:
