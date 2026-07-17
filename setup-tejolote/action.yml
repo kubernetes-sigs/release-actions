@@ -35,13 +35,10 @@ inputs:
 runs:
   using: "composite"
   steps:
-    - uses: sigstore/cosign-installer@6f9f17788090df1f26f669e9d70d6ae9567deba6 # v4.1.2
-      with:
-        install-dir: ${{ inputs.install-dir }}
-        use-sudo: ${{ inputs.use-sudo }}
-    - shell: bash
+    - id: download
+      shell: bash
       run: |
-        #!/bin/bash
+        #!/usr/bin/env bash
         # tejolote install script
         shopt -s expand_aliases
         if [ -z "$NO_COLOR" ]; then
@@ -53,73 +50,34 @@ runs:
         fi
         set -e
 
-        mkdir -p ${{ inputs.install-dir }}
-
-        trap "popd >/dev/null" EXIT
-
-        pushd ${{ inputs.install-dir }} > /dev/null
         tejolote_executable_name='tejolote'
         case ${{ runner.os }} in
           Linux)
             case ${{ runner.arch }} in
-              X64)
-                desired_tejolote_filename='tejolote-amd64-linux'
-                ;;
-
-              ARM)
-                desired_tejolote_filename='tejolote-arm-linux'
-                ;;
-
-              ARM64)
-                desired_tejolote_filename='tejolote-arm64-linux'
-                ;;
-
-              *)
-                log_error "unsupported architecture $arch"
-                exit 1
-                ;;
+              X64)   desired_tejolote_filename='tejolote-amd64-linux' ;;
+              ARM)   desired_tejolote_filename='tejolote-arm-linux' ;;
+              ARM64) desired_tejolote_filename='tejolote-arm64-linux' ;;
+              *) log_error "unsupported architecture $arch"; exit 1 ;;
             esac
             ;;
-
           macOS)
             case ${{ runner.arch }} in
-              X64)
-                desired_tejolote_filename='tejolote-amd64-darwin'
-                ;;
-
-              ARM64)
-                desired_tejolote_filename='tejolote-arm64-darwin'
-                ;;
-
-              *)
-                log_error "unsupported architecture $arch"
-                exit 1
-                ;;
+              X64)   desired_tejolote_filename='tejolote-amd64-darwin' ;;
+              ARM64) desired_tejolote_filename='tejolote-arm64-darwin' ;;
+              *) log_error "unsupported architecture $arch"; exit 1 ;;
             esac
             ;;
-
           Windows)
             case ${{ runner.arch }} in
               X64)
                 desired_tejolote_filename='tejolote-amd64-windows.exe'
                 tejolote_executable_name=tejolote.exe
                 ;;
-              *)
-                log_error "unsupported architecture $arch"
-                exit 1
-                ;;
+              *) log_error "unsupported architecture $arch"; exit 1 ;;
             esac
             ;;
-          *)
-            log_error "unsupported architecture $arch"
-            exit 1
-            ;;
+          *) log_error "unsupported architecture $arch"; exit 1 ;;
         esac
-
-        SUDO=
-        if "${{ inputs.use-sudo }}" == "true" && command -v sudo >/dev/null; then
-          SUDO=sudo
-        fi
 
         semver='^([0-9]+\.){0,2}(\*|[0-9]+)$'
         if [[ ${{ inputs.tejolote-release }} =~ $semver ]]; then
@@ -129,34 +87,62 @@ runs:
           exit 1
         fi
 
-        # Download custom tejolote
-        log_info "Downloading platform-specific version '${{ inputs.tejolote-release }}' of tejolote...\n      https://github.com/kubernetes-sigs/tejolote/releases/download/v${{ inputs.tejolote-release }}/${desired_tejolote_filename}"
-        $SUDO curl -sL https://github.com/kubernetes-sigs/tejolote/releases/download/v${{ inputs.tejolote-release }}/${desired_tejolote_filename} -o ${tejolote_executable_name}
+        RELEASE_URL="https://github.com/kubernetes-sigs/tejolote/releases/download/v${{ inputs.tejolote-release }}"
 
-        TEJOLOTE_BUNDLE_URL=https://github.com/kubernetes-sigs/tejolote/releases/download/v${{ inputs.tejolote-release }}/${desired_tejolote_filename}.sigstore.json
-        TEJOLOTE_CERT=https://github.com/kubernetes-sigs/tejolote/releases/download/v${{ inputs.tejolote-release }}/${desired_tejolote_filename}.pem
-        TEJOLOTE_SIG=https://github.com/kubernetes-sigs/tejolote/releases/download/v${{ inputs.tejolote-release }}/${desired_tejolote_filename}.sig
+        # Stage the binary and its signatures in a dedicated directory (relative
+        # to the workspace, which keeps the path portable across runners) so the
+        # AMPEL policy can be evaluated by collecting from it.
+        verify_dir="ampel-verify-tejolote"
+        rm -rf "${verify_dir}"
+        mkdir -p "${verify_dir}"
 
-        log_info "Using cosign to verify signature of desired tejolote version"
-        if $SUDO curl -sfL "$TEJOLOTE_BUNDLE_URL" -o ${desired_tejolote_filename}.sigstore.json 2>/dev/null; then
-          log_info "Using bundle verification"
-          cosign verify-blob --bundle ${desired_tejolote_filename}.sigstore.json \
-            --certificate-identity "https://github.com/kubernetes-sigs/tejolote/.github/workflows/release.yml@refs/tags/v${{ inputs.tejolote-release }}" \
-            --certificate-oidc-issuer "https://token.actions.githubusercontent.com" ${tejolote_executable_name}
-        else
-          log_info "Using legacy certificate/signature verification"
-          cosign verify-blob --certificate $TEJOLOTE_CERT --signature $TEJOLOTE_SIG \
-            --certificate-identity "https://github.com/kubernetes-sigs/tejolote/.github/workflows/release.yml@refs/tags/v${{ inputs.tejolote-release }}" \
-            --certificate-oidc-issuer "https://token.actions.githubusercontent.com" ${tejolote_executable_name}
+        log_info "Downloading platform-specific version '${{ inputs.tejolote-release }}' of tejolote...\n      ${RELEASE_URL}/${desired_tejolote_filename}"
+        curl -sfL "${RELEASE_URL}/${desired_tejolote_filename}" -o "${verify_dir}/${desired_tejolote_filename}"
+
+        # Releases are signed either with a detached certificate + signature
+        # pair or with a sigstore bundle. Fetch whichever the release published;
+        # the others simply 404 and are removed.
+        for ext in .sig .pem .sigstore.json; do
+          if curl -sfL "${RELEASE_URL}/${desired_tejolote_filename}${ext}" -o "${verify_dir}/${desired_tejolote_filename}${ext}"; then
+            log_info "Fetched signature file ${desired_tejolote_filename}${ext}"
+          else
+            rm -f "${verify_dir}/${desired_tejolote_filename}${ext}"
+          fi
+        done
+
+        {
+          echo "verify-dir=${verify_dir}"
+          echo "artifact=${verify_dir}/${desired_tejolote_filename}"
+          echo "executable=${tejolote_executable_name}"
+        } >> "$GITHUB_OUTPUT"
+
+    # Verifies the downloaded binary carries a sigstore signature from the
+    # tejolote release workflow. The policy accepts both the legacy detached
+    # certificate + signature pair and the newer sigstore bundle.
+    - name: Verify tejolote signature
+      uses: carabiner-dev/actions/ampel/verify@2a4b2cd115ede14629b03ef7e77586d3269d4c72 # v1.2.3
+      with:
+        subject: ${{ steps.download.outputs.artifact }}
+        collector: fs:${{ steps.download.outputs.verify-dir }}
+        policy: git+https://github.com/carabiner-dev/policies#sigstore/sigstore-dual-signatures.json
+        signer: sigstore::https://token.actions.githubusercontent.com::https://github.com/kubernetes-sigs/tejolote/.github/workflows/release.yml@refs/tags/v${{ inputs.tejolote-release }}
+        attest: "false"
+
+    - name: Install tejolote
+      shell: bash
+      run: |
+        set -e
+        SUDO=
+        if "${{ inputs.use-sudo }}" == "true" && command -v sudo >/dev/null; then
+          SUDO=sudo
         fi
-        retVal=$?
-        if [[ $retVal -eq 0 ]]; then
-          $SUDO chmod +x ${tejolote_executable_name}
-          log_info "Installation complete!"
-        else
-          log_error "Unable to validate tejolote version: '${{ inputs.tejolote-release }}'"
-          exit 1
-        fi
+        $SUDO mkdir -p "${{ inputs.install-dir }}"
+        $SUDO install -m 0755 "${ARTIFACT}" "${{ inputs.install-dir }}/${EXECUTABLE}"
+        rm -rf "${VERIFY_DIR}"
+      env:
+        ARTIFACT: ${{ steps.download.outputs.artifact }}
+        EXECUTABLE: ${{ steps.download.outputs.executable }}
+        VERIFY_DIR: ${{ steps.download.outputs.verify-dir }}
 
     - if: ${{ runner.os == 'Linux' || runner.os == 'macOS' }}
       run: echo "${{ inputs.install-dir }}" >> $GITHUB_PATH

@@ -35,11 +35,8 @@ inputs:
 runs:
   using: "composite"
   steps:
-    - uses: sigstore/cosign-installer@6f9f17788090df1f26f669e9d70d6ae9567deba6 # v4.1.2
-      with:
-        install-dir: ${{ inputs.install-dir }}
-        use-sudo: ${{ inputs.use-sudo }}
-    - shell: bash
+    - id: download
+      shell: bash
       run: |
         #!/usr/bin/env bash
         # release notes install script
@@ -53,11 +50,6 @@ runs:
         fi
         set -e
 
-        mkdir -p ${{ inputs.install-dir }}
-
-        trap "popd >/dev/null" EXIT
-
-        pushd ${{ inputs.install-dir }} > /dev/null
         rn_executable_name='release-notes'
         case ${{ runner.os }} in
           Linux)
@@ -100,11 +92,6 @@ runs:
             ;;
         esac
 
-        SUDO=
-        if "${{ inputs.use-sudo }}" == "true" && command -v sudo >/dev/null; then
-          SUDO=sudo
-        fi
-
         semver='^([0-9]+\.){0,2}(\*|[0-9]+)$'
         if [[ ${{ inputs.release-notes-release }} =~ $semver ]]; then
           log_info "Custom release-notes version '${{ inputs.release-notes-release }}' requested"
@@ -113,25 +100,68 @@ runs:
           exit 1
         fi
 
-        # Download custom release-notes
-        log_info "Downloading platform-specific version '${{ inputs.release-notes-release }}' of release-notes...\n      https://github.com/kubernetes/release/releases/download/v${{ inputs.release-notes-release }}/${desired_rn_filename}"
-        $SUDO curl -sL https://github.com/kubernetes/release/releases/download/v${{ inputs.release-notes-release }}/${desired_rn_filename} -o ${rn_executable_name}
+        RELEASE_URL="https://github.com/kubernetes/release/releases/download/v${{ inputs.release-notes-release }}"
 
-        RN_CERT=https://github.com/kubernetes/release/releases/download/v${{ inputs.release-notes-release }}/${desired_rn_filename}.pem
-        RN_SIG=https://github.com/kubernetes/release/releases/download/v${{ inputs.release-notes-release }}/${desired_rn_filename}.sig
+        # The binary and its signatures are staged in a temporary directory. The
+        # AMPEL policy is evaluated by collecting from that directory, so it must
+        # hold the artifact next to its signature files and nothing else.
+        verify_dir="$(mktemp -d)"
 
-        log_info "Using cosign to verify signature of desired release-notes version"
-        cosign verify-blob --certificate $RN_CERT --signature $RN_SIG \
-          --certificate-identity "https://github.com/kubernetes/release/.github/workflows/release.yml@refs/tags/v${{ inputs.release-notes-release }}" \
-          --certificate-oidc-issuer "https://token.actions.githubusercontent.com" ${rn_executable_name}
-        retVal=$?
-        if [[ $retVal -eq 0 ]]; then
-          $SUDO chmod +x ${rn_executable_name}
-          log_info "Installation complete!"
+        log_info "Downloading platform-specific version '${{ inputs.release-notes-release }}' of release-notes...\n      ${RELEASE_URL}/${desired_rn_filename}"
+        curl -sfL "${RELEASE_URL}/${desired_rn_filename}" -o "${verify_dir}/${desired_rn_filename}"
+
+        # Releases are signed either with a detached certificate + signature pair
+        # or with a sigstore bundle. Try both: whichever the release published
+        # will land in the verification directory and the rest simply 404.
+        for ext in .sig .pem .sigstore.json; do
+          if curl -sfL "${RELEASE_URL}/${desired_rn_filename}${ext}" -o "${verify_dir}/${desired_rn_filename}${ext}"; then
+            log_info "Fetched signature file ${desired_rn_filename}${ext}"
+          else
+            rm -f "${verify_dir}/${desired_rn_filename}${ext}"
+          fi
+        done
+
+        {
+          echo "verify-dir=${verify_dir}"
+          echo "artifact=${verify_dir}/${desired_rn_filename}"
+          echo "executable=${rn_executable_name}"
+        } >> "$GITHUB_OUTPUT"
+
+    # Verifies the downloaded binary carries a sigstore signature from the
+    # kubernetes/release release workflow. The policy accepts both the legacy
+    # detached certificate + signature pair and the newer sigstore bundle.
+    - name: Verify release-notes signature
+      uses: carabiner-dev/actions/ampel/verify@2a4b2cd115ede14629b03ef7e77586d3269d4c72 # v1.2.3
+      with:
+        subject: ${{ steps.download.outputs.artifact }}
+        collector: fs:${{ steps.download.outputs.verify-dir }}
+        policy: git+https://github.com/carabiner-dev/policies#sigstore/sigstore-dual-signatures.json
+        signer: sigstore::https://token.actions.githubusercontent.com::https://github.com/kubernetes/release/.github/workflows/release.yml@refs/tags/v${{ inputs.release-notes-release }}
+        attest: "false"
+
+    - shell: bash
+      run: |
+        shopt -s expand_aliases
+        if [ -z "$NO_COLOR" ]; then
+          alias log_info="echo -e \"\033[1;32mINFO\033[0m:\""
         else
-          log_error "Unable to validate the release-notes binary: '${{ inputs.release-notes-release }}'"
-          exit 1
+          alias log_info="echo \"INFO:\""
         fi
+        set -e
+
+        SUDO=
+        if "${{ inputs.use-sudo }}" == "true" && command -v sudo >/dev/null; then
+          SUDO=sudo
+        fi
+
+        $SUDO mkdir -p ${{ inputs.install-dir }}
+        $SUDO install -m 0755 "${ARTIFACT}" "${{ inputs.install-dir }}/${EXECUTABLE}"
+        rm -rf "${VERIFY_DIR}"
+        log_info "Installation complete!"
+      env:
+        ARTIFACT: ${{ steps.download.outputs.artifact }}
+        VERIFY_DIR: ${{ steps.download.outputs.verify-dir }}
+        EXECUTABLE: ${{ steps.download.outputs.executable }}
 
     - run: echo "${{ inputs.install-dir }}" >> $GITHUB_PATH
       shell: bash

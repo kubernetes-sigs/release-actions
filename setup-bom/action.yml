@@ -35,11 +35,8 @@ inputs:
 runs:
   using: "composite"
   steps:
-    - uses: sigstore/cosign-installer@6f9f17788090df1f26f669e9d70d6ae9567deba6 # v4.1.2
-      with:
-        install-dir: ${{ inputs.install-dir }}
-        use-sudo: ${{ inputs.use-sudo }}
-    - shell: bash
+    - id: download
+      shell: bash
       run: |
         #!/usr/bin/env bash
         # bom install script
@@ -53,73 +50,34 @@ runs:
         fi
         set -e
 
-        mkdir -p ${{ inputs.install-dir }}
-
-        trap "popd >/dev/null" EXIT
-
-        pushd ${{ inputs.install-dir }} > /dev/null
         bom_executable_name='bom'
         case ${{ runner.os }} in
           Linux)
             case ${{ runner.arch }} in
-              X64)
-                desired_bom_filename='bom-amd64-linux'
-                ;;
-
-              ARM)
-                desired_bom_filename='bom-arm-linux'
-                ;;
-
-              ARM64)
-                desired_bom_filename='bom-arm64-linux'
-                ;;
-
-              *)
-                log_error "unsupported architecture $arch"
-                exit 1
-                ;;
+              X64)   desired_bom_filename='bom-amd64-linux' ;;
+              ARM)   desired_bom_filename='bom-arm-linux' ;;
+              ARM64) desired_bom_filename='bom-arm64-linux' ;;
+              *) log_error "unsupported architecture $arch"; exit 1 ;;
             esac
             ;;
-
           macOS)
             case ${{ runner.arch }} in
-              X64)
-                desired_bom_filename='bom-amd64-darwin'
-                ;;
-
-              ARM64)
-                desired_bom_filename='bom-arm64-darwin'
-                ;;
-
-              *)
-                log_error "unsupported architecture $arch"
-                exit 1
-                ;;
+              X64)   desired_bom_filename='bom-amd64-darwin' ;;
+              ARM64) desired_bom_filename='bom-arm64-darwin' ;;
+              *) log_error "unsupported architecture $arch"; exit 1 ;;
             esac
             ;;
-
           Windows)
             case ${{ runner.arch }} in
               X64)
                 desired_bom_filename='bom-amd64-windows.exe'
                 bom_executable_name=bom.exe
                 ;;
-              *)
-                log_error "unsupported architecture $arch"
-                exit 1
-                ;;
+              *) log_error "unsupported architecture $arch"; exit 1 ;;
             esac
             ;;
-          *)
-            log_error "unsupported architecture $arch"
-            exit 1
-            ;;
+          *) log_error "unsupported architecture $arch"; exit 1 ;;
         esac
-
-        SUDO=
-        if "${{ inputs.use-sudo }}" == "true" && command -v sudo >/dev/null; then
-          SUDO=sudo
-        fi
 
         semver='^([0-9]+\.){0,2}(\*|[0-9]+)$'
         if [[ ${{ inputs.bom-release }} =~ $semver ]]; then
@@ -129,25 +87,62 @@ runs:
           exit 1
         fi
 
-        # Download custom bom
-        log_info "Downloading platform-specific version '${{ inputs.bom-release }}' of bom...\n      https://github.com/kubernetes-sigs/bom/releases/download/v${{ inputs.bom-release }}/${desired_bom_filename}"
-        $SUDO curl -sL https://github.com/kubernetes-sigs/bom/releases/download/v${{ inputs.bom-release }}/${desired_bom_filename} -o ${bom_executable_name}
+        RELEASE_URL="https://github.com/kubernetes-sigs/bom/releases/download/v${{ inputs.bom-release }}"
 
-        BOM_CERT=https://github.com/kubernetes-sigs/bom/releases/download/v${{ inputs.bom-release }}/${desired_bom_filename}.pem
-        BOM_SIG=https://github.com/kubernetes-sigs/bom/releases/download/v${{ inputs.bom-release }}/${desired_bom_filename}.sig
+        # Stage the binary and its signatures in a dedicated directory (relative
+        # to the workspace, which keeps the path portable across runners) so the
+        # AMPEL policy can be evaluated by collecting from it.
+        verify_dir="ampel-verify-bom"
+        rm -rf "${verify_dir}"
+        mkdir -p "${verify_dir}"
 
-        log_info "Using cosign to verify signature of desired bom version"
-        cosign verify-blob --certificate $BOM_CERT --signature $BOM_SIG \
-          --certificate-identity "https://github.com/kubernetes-sigs/bom/.github/workflows/release.yml@refs/tags/v${{ inputs.bom-release }}" \
-          --certificate-oidc-issuer "https://token.actions.githubusercontent.com" ${bom_executable_name}
-        retVal=$?
-        if [[ $retVal -eq 0 ]]; then
-          $SUDO chmod +x ${bom_executable_name}
-          log_info "Installation complete!"
-        else
-          log_error "Unable to validate bom version: '${{ inputs.bom-release }}'"
-          exit 1
+        log_info "Downloading platform-specific version '${{ inputs.bom-release }}' of bom...\n      ${RELEASE_URL}/${desired_bom_filename}"
+        curl -sfL "${RELEASE_URL}/${desired_bom_filename}" -o "${verify_dir}/${desired_bom_filename}"
+
+        # Releases are signed either with a detached certificate + signature
+        # pair or with a sigstore bundle. Fetch whichever the release published;
+        # the others simply 404 and are removed.
+        for ext in .sig .pem .sigstore.json; do
+          if curl -sfL "${RELEASE_URL}/${desired_bom_filename}${ext}" -o "${verify_dir}/${desired_bom_filename}${ext}"; then
+            log_info "Fetched signature file ${desired_bom_filename}${ext}"
+          else
+            rm -f "${verify_dir}/${desired_bom_filename}${ext}"
+          fi
+        done
+
+        {
+          echo "verify-dir=${verify_dir}"
+          echo "artifact=${verify_dir}/${desired_bom_filename}"
+          echo "executable=${bom_executable_name}"
+        } >> "$GITHUB_OUTPUT"
+
+    # Verifies the downloaded binary carries a sigstore signature from the
+    # bom release workflow. The policy accepts both the legacy detached
+    # certificate + signature pair and the newer sigstore bundle.
+    - name: Verify bom signature
+      uses: carabiner-dev/actions/ampel/verify@2a4b2cd115ede14629b03ef7e77586d3269d4c72 # v1.2.3
+      with:
+        subject: ${{ steps.download.outputs.artifact }}
+        collector: fs:${{ steps.download.outputs.verify-dir }}
+        policy: git+https://github.com/carabiner-dev/policies#sigstore/sigstore-dual-signatures.json
+        signer: sigstore::https://token.actions.githubusercontent.com::https://github.com/kubernetes-sigs/bom/.github/workflows/release.yml@refs/tags/v${{ inputs.bom-release }}
+        attest: "false"
+
+    - name: Install bom
+      shell: bash
+      run: |
+        set -e
+        SUDO=
+        if "${{ inputs.use-sudo }}" == "true" && command -v sudo >/dev/null; then
+          SUDO=sudo
         fi
+        $SUDO mkdir -p "${{ inputs.install-dir }}"
+        $SUDO install -m 0755 "${ARTIFACT}" "${{ inputs.install-dir }}/${EXECUTABLE}"
+        rm -rf "${VERIFY_DIR}"
+      env:
+        ARTIFACT: ${{ steps.download.outputs.artifact }}
+        EXECUTABLE: ${{ steps.download.outputs.executable }}
+        VERIFY_DIR: ${{ steps.download.outputs.verify-dir }}
 
     - if: ${{ runner.os == 'Linux' || runner.os == 'macOS' }}
       run: echo "${{ inputs.install-dir }}" >> $GITHUB_PATH
