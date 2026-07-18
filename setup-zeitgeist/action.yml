@@ -39,11 +39,8 @@ inputs:
 runs:
   using: "composite"
   steps:
-    - uses: sigstore/cosign-installer@6f9f17788090df1f26f669e9d70d6ae9567deba6 # v4.1.2
-      with:
-        install-dir: ${{ inputs.install-dir }}
-        use-sudo: ${{ inputs.use-sudo }}
-    - shell: bash
+    - id: download
+      shell: bash
       run: |
         #!/usr/bin/env bash
         # zeitgeist install script
@@ -57,86 +54,54 @@ runs:
         fi
         set -e
 
-        mkdir -p ${{ inputs.install-dir }}
-
-        export ZEITGIEST_REMOTE=
+        # The remote build checks dependencies from upstream repositories and
+        # registries; its release artifacts carry a "-remote" suffix.
+        ZEITGIEST_REMOTE=
         if [[ ${{ inputs.remote-version }} == "true" ]]; then
-          export ZEITGIEST_REMOTE=-remote
+          ZEITGIEST_REMOTE=-remote
         fi
 
+        # Fast path: install the development build straight from source. This
+        # path installs via a symlink and therefore skips the signature
+        # verification and install steps that follow.
         if [[ ${{ inputs.zeitgeist-release }} == "main" && ${{ inputs.remote-version }} == "false" ]]; then
           log_info "installing zeitgeist via 'go install' from its main version"
+          mkdir -p "${{ inputs.install-dir }}"
           GOBIN=$(go env GOPATH)/bin
           go install sigs.k8s.io/zeitgeist@master
-          ln -s $GOBIN/zeitgeist ${{ inputs.install-dir}}/zeitgeist
+          ln -s "$GOBIN/zeitgeist" "${{ inputs.install-dir }}/zeitgeist"
+          echo "mode=goinstall" >> "$GITHUB_OUTPUT"
           exit 0
         fi
 
-        trap "popd >/dev/null" EXIT
-
-        pushd ${{ inputs.install-dir }} > /dev/null
         zeitgeist_executable_name='zeitgeist'
         case ${{ runner.os }} in
           Linux)
             case ${{ runner.arch }} in
-              X64)
-                desired_zeitgeist_filename="zeitgeist${ZEITGIEST_REMOTE}-amd64-linux"
-                ;;
-
-              ARM)
-                desired_zeitgeist_filename="zeitgeist${ZEITGIEST_REMOTE}-arm-linux"
-                ;;
-
-              ARM64)
-                desired_zeitgeist_filename="zeitgeist${ZEITGIEST_REMOTE}-arm64-linux"
-                ;;
-
-              *)
-                log_error "unsupported architecture $arch"
-                exit 1
-                ;;
+              X64)   desired_zeitgeist_filename="zeitgeist${ZEITGIEST_REMOTE}-amd64-linux" ;;
+              ARM)   desired_zeitgeist_filename="zeitgeist${ZEITGIEST_REMOTE}-arm-linux" ;;
+              ARM64) desired_zeitgeist_filename="zeitgeist${ZEITGIEST_REMOTE}-arm64-linux" ;;
+              *) log_error "unsupported architecture $arch"; exit 1 ;;
             esac
             ;;
-
           macOS)
             case ${{ runner.arch }} in
-              X64)
-                desired_zeitgeist_filename="zeitgeist${ZEITGIEST_REMOTE}-amd64-darwin"
-                ;;
-
-              ARM64)
-                desired_zeitgeist_filename="zeitgeist${ZEITGIEST_REMOTE}-arm64-darwin"
-                ;;
-
-              *)
-                log_error "unsupported architecture $arch"
-                exit 1
-                ;;
+              X64)   desired_zeitgeist_filename="zeitgeist${ZEITGIEST_REMOTE}-amd64-darwin" ;;
+              ARM64) desired_zeitgeist_filename="zeitgeist${ZEITGIEST_REMOTE}-arm64-darwin" ;;
+              *) log_error "unsupported architecture $arch"; exit 1 ;;
             esac
             ;;
-
           Windows)
             case ${{ runner.arch }} in
               X64)
                 desired_zeitgeist_filename="zeitgeist${ZEITGIEST_REMOTE}-amd64-windows.exe"
                 zeitgeist_executable_name=zeitgeist.exe
                 ;;
-              *)
-                log_error "unsupported architecture $arch"
-                exit 1
-                ;;
+              *) log_error "unsupported architecture $arch"; exit 1 ;;
             esac
             ;;
-          *)
-            log_error "unsupported architecture $arch"
-            exit 1
-            ;;
+          *) log_error "unsupported architecture $arch"; exit 1 ;;
         esac
-
-        SUDO=
-        if "${{ inputs.use-sudo }}" == "true" && command -v sudo >/dev/null; then
-          SUDO=sudo
-        fi
 
         semver='^([0-9]+\.){0,2}(\*|[0-9]+)$'
         if [[ ${{ inputs.zeitgeist-release }} =~ $semver ]]; then
@@ -146,25 +111,66 @@ runs:
           exit 1
         fi
 
-        # Download custom zeitgeist
-        log_info "Downloading platform-specific version '${{ inputs.zeitgeist-release }}' of zeitgeist...\n      https://github.com/kubernetes-sigs/zeitgeist/releases/download/v${{ inputs.zeitgeist-release }}/${desired_zeitgeist_filename}"
-        $SUDO curl -sL https://github.com/kubernetes-sigs/zeitgeist/releases/download/v${{ inputs.zeitgeist-release }}/${desired_zeitgeist_filename} -o ${zeitgeist_executable_name}
+        RELEASE_URL="https://github.com/kubernetes-sigs/zeitgeist/releases/download/v${{ inputs.zeitgeist-release }}"
 
-        ZEITGEIST_CERT=https://github.com/kubernetes-sigs/zeitgeist/releases/download/v${{ inputs.zeitgeist-release }}/${desired_zeitgeist_filename}.pem
-        ZEITGEIST_SIG=https://github.com/kubernetes-sigs/zeitgeist/releases/download/v${{ inputs.zeitgeist-release }}/${desired_zeitgeist_filename}.sig
+        # Stage the binary and its signatures in a dedicated directory (relative
+        # to the workspace, which keeps the path portable across runners) so the
+        # AMPEL policy can be evaluated by collecting from it.
+        verify_dir="ampel-verify-zeitgeist"
+        rm -rf "${verify_dir}"
+        mkdir -p "${verify_dir}"
 
-        log_info "Using cosign to verify signature of desired zeitgeist version"
-        cosign verify-blob --certificate $ZEITGEIST_CERT --signature $ZEITGEIST_SIG \
-          --certificate-identity "https://github.com/kubernetes-sigs/zeitgeist/.github/workflows/release.yml@refs/tags/v${{ inputs.zeitgeist-release }}" \
-          --certificate-oidc-issuer "https://token.actions.githubusercontent.com" ${zeitgeist_executable_name}
-        retVal=$?
-        if [[ $retVal -eq 0 ]]; then
-          $SUDO chmod +x ${zeitgeist_executable_name}
-          log_info "Installation complete!"
-        else
-          log_error "Unable to validate zeitgeist version: '${{ inputs.zeitgeist-release }}'"
-          exit 1
+        log_info "Downloading platform-specific version '${{ inputs.zeitgeist-release }}' of zeitgeist...\n      ${RELEASE_URL}/${desired_zeitgeist_filename}"
+        curl -sfL "${RELEASE_URL}/${desired_zeitgeist_filename}" -o "${verify_dir}/${desired_zeitgeist_filename}"
+
+        # Releases are signed either with a detached certificate + signature
+        # pair or with a sigstore bundle. Fetch whichever the release published;
+        # the others simply 404 and are removed.
+        for ext in .sig .pem .sigstore.json; do
+          if curl -sfL "${RELEASE_URL}/${desired_zeitgeist_filename}${ext}" -o "${verify_dir}/${desired_zeitgeist_filename}${ext}"; then
+            log_info "Fetched signature file ${desired_zeitgeist_filename}${ext}"
+          else
+            rm -f "${verify_dir}/${desired_zeitgeist_filename}${ext}"
+          fi
+        done
+
+        {
+          echo "verify-dir=${verify_dir}"
+          echo "artifact=${verify_dir}/${desired_zeitgeist_filename}"
+          echo "executable=${zeitgeist_executable_name}"
+          echo "mode=download"
+        } >> "$GITHUB_OUTPUT"
+
+    # Verifies the downloaded binary carries a sigstore signature from the
+    # zeitgeist release workflow. The policy accepts both the legacy detached
+    # certificate + signature pair and the newer sigstore bundle. Skipped for
+    # the go-install fast path, which does not download a release artifact.
+    - name: Verify zeitgeist signature
+      if: ${{ steps.download.outputs.mode == 'download' }}
+      uses: carabiner-dev/actions/ampel/verify@2a4b2cd115ede14629b03ef7e77586d3269d4c72 # v1.2.3
+      with:
+        subject: ${{ steps.download.outputs.artifact }}
+        collector: fs:${{ steps.download.outputs.verify-dir }}
+        policy: git+https://github.com/carabiner-dev/policies#sigstore/sigstore-dual-signatures.json
+        signer: sigstore::https://token.actions.githubusercontent.com::https://github.com/kubernetes-sigs/zeitgeist/.github/workflows/release.yml@refs/tags/v${{ inputs.zeitgeist-release }}
+        attest: "false"
+
+    - name: Install zeitgeist
+      if: ${{ steps.download.outputs.mode == 'download' }}
+      shell: bash
+      run: |
+        set -e
+        SUDO=
+        if "${{ inputs.use-sudo }}" == "true" && command -v sudo >/dev/null; then
+          SUDO=sudo
         fi
+        $SUDO mkdir -p "${{ inputs.install-dir }}"
+        $SUDO install -m 0755 "${ARTIFACT}" "${{ inputs.install-dir }}/${EXECUTABLE}"
+        rm -rf "${VERIFY_DIR}"
+      env:
+        ARTIFACT: ${{ steps.download.outputs.artifact }}
+        EXECUTABLE: ${{ steps.download.outputs.executable }}
+        VERIFY_DIR: ${{ steps.download.outputs.verify-dir }}
 
     - if: ${{ runner.os == 'Linux' || runner.os == 'macOS' }}
       run: echo "${{ inputs.install-dir }}" >> $GITHUB_PATH
