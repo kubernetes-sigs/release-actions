@@ -120,7 +120,7 @@ runs:
     # tejolote release workflow. The policy accepts both the legacy detached
     # certificate + signature pair and the newer sigstore bundle.
     - name: Verify tejolote signature
-      uses: carabiner-dev/actions/ampel/verify@2a4b2cd115ede14629b03ef7e77586d3269d4c72 # v1.2.3
+      uses: carabiner-dev/actions/ampel/verify@36a39ef667efe7112df8b1a534a4e37f35fad6fd # v1.2.6
       with:
         subject: ${{ steps.download.outputs.artifact }}
         collector: fs:${{ steps.download.outputs.verify-dir }}
