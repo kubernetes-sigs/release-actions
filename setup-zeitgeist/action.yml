@@ -147,7 +147,7 @@ runs:
     # the go-install fast path, which does not download a release artifact.
     - name: Verify zeitgeist signature
       if: ${{ steps.download.outputs.mode == 'download' }}
-      uses: carabiner-dev/actions/ampel/verify@d41fe10fe88deaf493ce026007da73738b9f570c # v1.3.0
+      uses: carabiner-dev/actions/ampel/verify@63d43b57262e65927864c8f7ca0a6a8efe06acc0 # v1.3.1
       with:
         subject: ${{ steps.download.outputs.artifact }}
         collector: fs:${{ steps.download.outputs.verify-dir }}
